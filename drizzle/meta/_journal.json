@@ -8,6 +8,13 @@
       "when": 1785279587312,
       "tag": "0000_initial_checkout_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1785331188846,
+      "tag": "0001_restrict_customer_delete",
+      "breakpoints": true
     }
   ]
 }

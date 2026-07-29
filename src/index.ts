@@ -1,6 +1,8 @@
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 
+import {customersRouter} from './features/customers.js'
+
 const app = new Hono()
 
 app.get('/', (c) => {
@@ -10,6 +12,8 @@ app.get('/', (c) => {
 app.get('/health', (c) => {
   return c.text('ok')
 })
+
+app.route('/customers', customersRouter)
 
 serve({
   fetch: app.fetch,

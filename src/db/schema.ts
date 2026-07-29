@@ -52,7 +52,7 @@ export const discounts = pgTable('discounts', {
 
 export const orders = pgTable('orders', {
     id: serial('id').primaryKey(),
-    customerId: integer('customer_id').notNull().references(() => customers.id, {onDelete: 'cascade'}),
+    customerId: integer('customer_id').notNull().references(() => customers.id, {onDelete: 'restrict'}),
     shippingAddressId: integer('shipping_address_id').notNull().references(() => addresses.id, {onDelete: 'restrict'}),
     billingAddressId: integer('billing_address_id').notNull().references(() => addresses.id, {onDelete: 'restrict'}),
     discountId: integer('discount_id').references(() => discounts.id, {onDelete: 'restrict'}),
