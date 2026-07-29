@@ -4,6 +4,7 @@ import { Hono } from 'hono'
 import {customersRouter} from './features/customers.js'
 import {addressRouter} from './features/addresses.js'
 import {productsRouter} from './features/products.js'
+import {discountsRouter} from './features/discounts.js'
 
 const app = new Hono()
 
@@ -18,6 +19,7 @@ app.get('/health', (c) => {
 app.route('/customers', customersRouter)
 app.route('/addresses', addressRouter)
 app.route('/products', productsRouter)
+app.route('/discounts', discountsRouter)
 
 serve({
   fetch: app.fetch,
