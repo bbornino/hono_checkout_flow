@@ -2,6 +2,7 @@ import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 
 import {customersRouter} from './features/customers.js'
+import {addressRouter} from './features/addresses.js'
 
 const app = new Hono()
 
@@ -14,6 +15,7 @@ app.get('/health', (c) => {
 })
 
 app.route('/customers', customersRouter)
+app.route('/addresses', addressRouter)
 
 serve({
   fetch: app.fetch,
