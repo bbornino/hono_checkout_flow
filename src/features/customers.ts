@@ -5,16 +5,21 @@ import {z as zod} from 'zod'
 import {eq} from 'drizzle-orm'
 const customersRouter = new Hono()
 
-const customerSchema = zod.object({
+const customerBaseSchema = zod.object({
     firstName: zod.string().min(3).max(50),
     lastName: zod.string().min(3).max(50),
     email: zod.email().max(255),
     phone: zod.e164().max(20).optional(),
+    isGuest: zod.boolean(),
+    marketingOptIn: zod.boolean(),
+})
+
+const customerSchema = customerBaseSchema.extend({
     isGuest: zod.boolean().default(true),
     marketingOptIn: zod.boolean().default(false),
 })
 
-const customerUpdateSchema = customerSchema.partial()
+const customerUpdateSchema = customerBaseSchema.partial()
 
 customersRouter.get('/', async (context) => {
   const allCustomers = await db.select().from(customers)
