@@ -178,7 +178,27 @@ ordersRouter.post('/', async (context) => {
     return context.json(newOrder, 201)
 })
 
+ordersRouter.get('/:orderId', async (context) => {
+  const orderId = Number(context.req.param('orderId'))
+  const [order] = await db.select().from(orders).where(eq(orders.id, orderId))
 
+  if (!order) {
+    return context.json({error: `No order found for id ${orderId}`}, 404)
+  }
+
+  const items = await db.select({
+    id: orderItems.id,
+    productId: orderItems.productId,
+    productName: products.name,
+    quantity: orderItems.quantity,
+    unitPriceCents: orderItems.unitPriceCents,
+    lineTotalCents: orderItems.lineTotalCents,
+  }).from(orderItems)
+    .innerJoin(products, eq(orderItems.productId, products.id))
+    .where(eq(orderItems.orderId, orderId))
+
+    return context.json({...order, items})
+})
 
 
 
