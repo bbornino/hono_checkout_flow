@@ -119,6 +119,40 @@ describe('Orders API', () => {
       const response = await fetch(`${BASE_URL}/orders/9999999`)
       expect(response.status).toBe(404)
     })
+
+    it('returns the order with its status event history', async () => {
+      const response = await fetch(`${BASE_URL}/orders/${testOrderId}`)
+      const body = await response.json()
+
+      expect(body.events.length).toBeGreaterThanOrEqual(1)
+      expect(body.events[0].status).toBe('pending')
+    })
+
+    it('adds a new event when status changes', async () => {
+      const orderRes = await fetch(`${BASE_URL}/orders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId: testCustomerId,
+          shippingAddressId: testAddressId,
+          billingAddressId: testAddressId,
+          items: [{ productId: testProductId, quantity: 1 }],
+        }),
+      })
+      const order = await orderRes.json()
+
+      await fetch(`${BASE_URL}/orders/${order.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'paid' }),
+      })
+
+      const response = await fetch(`${BASE_URL}/orders/${order.id}`)
+      const body = await response.json()
+
+      expect(body.events.length).toBe(2)
+      expect(body.events[1].status).toBe('paid')
+    })
   })
 
   describe('GET /orders', () => {

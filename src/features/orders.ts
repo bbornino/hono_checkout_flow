@@ -194,7 +194,14 @@ ordersRouter.get('/:orderId', async (context) => {
     .innerJoin(products, eq(orderItems.productId, products.id))
     .where(eq(orderItems.orderId, orderId))
 
-    return context.json({...order, items})
+  const events = await db.select({
+    id: orderEvents.id,
+    status: orderEvents.status,
+    occurredAt: orderEvents.occurredAt,
+    note: orderEvents.note,
+  }).from(orderEvents).where(eq(orderEvents.orderId, orderId)).orderBy(orderEvents.occurredAt)
+
+  return context.json({...order, items, events})
 })
 
 ordersRouter.get('/', async (context) => {
