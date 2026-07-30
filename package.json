@@ -4,6 +4,8 @@
   "scripts": {
     "predev": "tsx src/scripts/check-database.ts && tsx src/scripts/check-rabbitmq.ts",
     "dev": "tsx watch src/index.ts",
+    "preconsumer": "tsx src/scripts/check-rabbitmq.ts",
+    "consumer": "tsx watch src/consumer.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "preseed": "tsx src/scripts/check-database.ts",

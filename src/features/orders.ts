@@ -4,7 +4,7 @@ import {products, discounts, orders, orderItems, orderEvents} from '../db/schema
 import {z as zod} from 'zod'
 import {eq, inArray, and} from 'drizzle-orm'
 import amqp from 'amqplib'
-import { RABBITMQ_URL, ORDER_STATUSES, ALLOWED_TRANSITIONS, TAX_RATE, SHIPPING_CENTS, type OrderStatus } from '../constants.js'
+import { RABBITMQ_URL, ORDER_PLACED_QUEUE, ORDER_STATUSES, ALLOWED_TRANSITIONS, TAX_RATE, SHIPPING_CENTS, type OrderStatus } from '../constants.js'
 
 // -------------    Router instance          -----------------
 const ordersRouter = new Hono()
@@ -121,10 +121,9 @@ async function calculateOrderTotals(
 async function publishOrderPlaced(orderId: number) {
   const connection = await amqp.connect(RABBITMQ_URL)
   const channel = await connection.createChannel()
-  const queueName = 'order_placed'
 
-  await channel.assertQueue(queueName, {durable: true})
-  channel.sendToQueue(queueName, Buffer.from(JSON.stringify({orderId})))
+  await channel.assertQueue(ORDER_PLACED_QUEUE, {durable: true})
+  channel.sendToQueue(ORDER_PLACED_QUEUE, Buffer.from(JSON.stringify({orderId})))
 
   await channel.close()
   await connection.close()
