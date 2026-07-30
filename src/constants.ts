@@ -1,6 +1,7 @@
 // src/constants.ts
 import 'dotenv/config'
 export const BASE_URL = process.env.TEST_BASE_URL!
+export const RABBITMQ_URL = process.env.RABBITMQ_URL!
 
 export const ORDER_STATUSES = ['pending', 'paid', 'fulfilling', 'shipped', 'delivered', 'cancelled', 'refunded'] as const
 export type OrderStatus = typeof ORDER_STATUSES[number]

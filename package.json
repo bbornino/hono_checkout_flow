@@ -2,17 +2,18 @@
   "name": "hono_checkout_flow",
   "type": "module",
   "scripts": {
-    "predev": "tsx src/scripts/check-database.ts",
+    "predev": "tsx src/scripts/check-database.ts && tsx src/scripts/check-rabbitmq.ts",
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "preseed": "tsx src/scripts/check-database.ts",
     "seed": "tsx src/db/seed.ts",
-    "pretest": "tsx src/scripts/check-server.ts&& tsx src/scripts/check-database.ts",
+    "pretest": "tsx src/scripts/check-server.ts && tsx src/scripts/check-database.ts && tsx src/scripts/check-rabbitmq.ts",
     "test": "vitest run"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.12",
+    "amqplib": "^2.0.1",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.32",
@@ -21,6 +22,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/amqplib": "^0.10.8",
     "@types/node": "^26.1.1",
     "drizzle-kit": "^0.31.10",
     "tsx": "^4.23.0",

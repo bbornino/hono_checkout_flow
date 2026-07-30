@@ -3,7 +3,8 @@ import {db} from '../db/index.js'
 import {products, discounts, orders, orderItems, orderEvents} from '../db/schema.js'
 import {z as zod} from 'zod'
 import {eq, inArray, and} from 'drizzle-orm'
-import { ORDER_STATUSES, ALLOWED_TRANSITIONS, TAX_RATE, SHIPPING_CENTS, type OrderStatus } from '../constants.js'
+import amqp from 'amqplib'
+import { RABBITMQ_URL, ORDER_STATUSES, ALLOWED_TRANSITIONS, TAX_RATE, SHIPPING_CENTS, type OrderStatus } from '../constants.js'
 
 // -------------    Router instance          -----------------
 const ordersRouter = new Hono()
@@ -117,6 +118,17 @@ async function calculateOrderTotals(
     }
 }
 
+async function publishOrderPlaced(orderId: number) {
+  const connection = await amqp.connect(RABBITMQ_URL)
+  const channel = await connection.createChannel()
+  const queueName = 'order_placed'
+
+  await channel.assertQueue(queueName, {durable: true})
+  channel.sendToQueue(queueName, Buffer.from(JSON.stringify({orderId})))
+
+  await channel.close()
+  await connection.close()
+}
 
 // -------------    Routes         -----------------
 
@@ -172,6 +184,7 @@ ordersRouter.post('/', async (context) => {
       return order
     })
 
+    await publishOrderPlaced(newOrder.id)
     return context.json(newOrder, 201)
 })
 
