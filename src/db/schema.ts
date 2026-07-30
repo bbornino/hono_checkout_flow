@@ -1,8 +1,17 @@
 import {pgTable, serial, varchar, text, integer, bigint, boolean, timestamp, real, doublePrecision, jsonb, check} from 'drizzle-orm/pg-core'
 import {sql} from 'drizzle-orm'
 
+export const users = pgTable('users', {
+    id: serial('id').primaryKey(),
+    email: varchar('email', {length: 255}).notNull(),       // True Prod: this would be unique. For dev work: no.
+    passwordHash: varchar('password_hash', {length: 255}).notNull(),
+    role: varchar('role', {length: 20}).notNull(),
+    createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
+})
+
 export const customers = pgTable('customers', {
     id: serial('id').primaryKey(),
+    userId: integer('user_id').references(() => users.id, {onDelete: 'restrict'}),
     firstName: varchar('first_name', {length: 50}).notNull(),
     lastName: varchar('last_name', {length:50}).notNull(),
     email: varchar('email', {length: 255}).notNull().unique(),

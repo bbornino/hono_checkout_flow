@@ -21,3 +21,6 @@ export const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
 
 export const TAX_RATE = 0.08
 export const SHIPPING_CENTS = 599
+
+export const USER_ROLES = ['customer', 'admin'] as const
+export type UserRole = typeof USER_ROLES[number]

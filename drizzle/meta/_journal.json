@@ -15,6 +15,13 @@
       "when": 1785331188846,
       "tag": "0001_restrict_customer_delete",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785448238189,
+      "tag": "0002_add_users_and_customer_link",
+      "breakpoints": true
     }
   ]
 }
