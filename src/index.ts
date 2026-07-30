@@ -5,6 +5,7 @@ import {customersRouter} from './features/customers.js'
 import {addressRouter} from './features/addresses.js'
 import {productsRouter} from './features/products.js'
 import {discountsRouter} from './features/discounts.js'
+import {ordersRouter} from './features/orders.js'
 
 const app = new Hono()
 
@@ -20,6 +21,7 @@ app.route('/customers', customersRouter)
 app.route('/addresses', addressRouter)
 app.route('/products', productsRouter)
 app.route('/discounts', discountsRouter)
+app.route('/orders', ordersRouter)
 
 serve({
   fetch: app.fetch,
