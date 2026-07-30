@@ -2,6 +2,7 @@
   "name": "hono_checkout_flow",
   "type": "module",
   "scripts": {
+    "predev": "tsx src/scripts/check-database.ts",
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",

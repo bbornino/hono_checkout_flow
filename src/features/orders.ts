@@ -1,6 +1,6 @@
 import {Hono} from 'hono'
 import {db} from '../db/index.js'
-import {products, discounts} from '../db/schema.js'
+import {products, discounts, orders, orderItems, orderEvents} from '../db/schema.js'
 import {z as zod} from 'zod'
 import {eq, inArray} from 'drizzle-orm'
 
@@ -137,7 +137,45 @@ ordersRouter.post('/', async (context) => {
         return context.json({error: totals.error}, 400)
     }
 
-    return context.json(totals.data)
+    const newOrder = await db.transaction(async (tx) => {
+      const [order] = await tx.insert(orders).values({
+        customerId: result.data.customerId,
+        shippingAddressId: result.data.shippingAddressId,
+        billingAddressId: result.data.billingAddressId,
+        discountId: result.data.discountId,
+        status: 'pending',
+        subtotalCents: totals.data.subtotalCents,
+        taxCents: totals.data.taxCents,
+        shippingCents: totals.data.shippingCents,
+        discountCents: totals.data.discountCents,
+        totalCents: totals.data.totalCents,
+        taxRate: TAX_RATE,
+        currency: 'USD',
+        isGift: result.data.isGift,
+        giftMessage: result.data.giftMessage,
+        placedAt: new Date(),
+      }).returning()
+
+      await tx.insert(orderItems).values(
+        totals.data.orderItemsData.map((item) => ({
+          orderId: order.id,
+          productId: item.productId,
+          quantity: item.quantity,
+          unitPriceCents: item.unitPriceCents,
+          lineTotalCents: item.lineTotalCents,
+        }))
+      )
+
+      await tx.insert(orderEvents).values({
+        orderId: order.id,
+        status: 'pending',
+        occurredAt: new Date(),
+      })
+
+      return order
+    })
+
+    return context.json(newOrder, 201)
 })
 
 
