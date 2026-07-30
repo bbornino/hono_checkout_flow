@@ -24,3 +24,4 @@ export const SHIPPING_CENTS = 599
 
 export const USER_ROLES = ['customer', 'admin'] as const
 export type UserRole = typeof USER_ROLES[number]
+export const JWT_SECRET = process.env.JWT_SECRET!
