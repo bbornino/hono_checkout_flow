@@ -5,6 +5,8 @@ export const BASE_URL = process.env.TEST_BASE_URL!
 export const ORDER_STATUSES = ['pending', 'paid', 'fulfilling', 'shipped', 'delivered', 'cancelled', 'refunded'] as const
 export type OrderStatus = typeof ORDER_STATUSES[number]
 
+export const PAYMENT_STATUSES = ['pending', 'succeeded', 'failed', 'refunded'] as const
+
 export const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   pending: ['paid', 'cancelled'],
   paid: ['fulfilling', 'cancelled', 'refunded'],
