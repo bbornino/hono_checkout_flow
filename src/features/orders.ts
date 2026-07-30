@@ -3,14 +3,10 @@ import {db} from '../db/index.js'
 import {products, discounts, orders, orderItems, orderEvents} from '../db/schema.js'
 import {z as zod} from 'zod'
 import {eq, inArray, and} from 'drizzle-orm'
+import { ORDER_STATUSES, ALLOWED_TRANSITIONS, TAX_RATE, SHIPPING_CENTS, type OrderStatus } from '../constants.js'
 
 // -------------    Router instance          -----------------
 const ordersRouter = new Hono()
-
-
-// -------------    Constants          -----------------
-const TAX_RATE = 0.08
-const SHIPPING_CENTS = 599
 
 
 // -------------    Zod Schemas        -----------------
@@ -29,6 +25,10 @@ const orderCreateSchema = zod.object({
   ).min(1),
 })
 
+const orderStatusUpdateSchema = zod.object({
+  status: zod.enum(ORDER_STATUSES),
+  note: zod.string().optional(),
+})
 
 // -------------    Types         -----------------
 type OrderItemData = {
@@ -116,9 +116,6 @@ async function calculateOrderTotals(
         data: { orderItemsData, subtotalCents, taxCents, shippingCents, discountCents, totalCents },
     }
 }
-
-
-
 
 
 // -------------    Routes         -----------------
@@ -221,5 +218,44 @@ ordersRouter.get('/', async (context) => {
   return context.json(allOrders)
 })
 
+ordersRouter.patch('/:orderId', async (context) => {
+  const orderId = Number(context.req.param('orderId'))
+  const body = await context.req.json()
+  const result = orderStatusUpdateSchema.safeParse(body)
+
+  if (!result.success) {
+    return context.json({error: zod.flattenError(result.error)}, 400)
+  }
+
+  const [order] = await db.select().from(orders).where(eq(orders.id, orderId))
+
+  if (!order) {
+    return context.json({error: `No order found for id ${orderId}`}, 404)
+  }
+
+  const currentStatus = order.status as OrderStatus
+  const allowedNext = ALLOWED_TRANSITIONS[currentStatus]
+
+  if (!allowedNext.includes(result.data.status)) {
+    return context.json({
+      error: `Cannot transition from ${currentStatus} to ${result.data.status}. Allowed: ${allowedNext.join(', ') || 'none (terminal status)'}`,
+    }, 409)
+  }
+
+  const updatedOrder = await db.transaction(async (tx) => {
+    const [updated] = await tx.update(orders).set({status: result.data.status}).where(eq(orders.id, orderId)).returning()
+
+    await tx.insert(orderEvents).values({
+      orderId: orderId,
+      status: result.data.status,
+      occurredAt: new Date(),
+      note: result.data.note,
+    })
+
+    return updated
+  })
+
+  return context.json(updatedOrder)
+})
 
 export { ordersRouter }
