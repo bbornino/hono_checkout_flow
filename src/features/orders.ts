@@ -2,7 +2,7 @@ import {Hono} from 'hono'
 import {db} from '../db/index.js'
 import {products, discounts, orders, orderItems, orderEvents} from '../db/schema.js'
 import {z as zod} from 'zod'
-import {eq, inArray} from 'drizzle-orm'
+import {eq, inArray, and} from 'drizzle-orm'
 
 // -------------    Router instance          -----------------
 const ordersRouter = new Hono()
@@ -200,7 +200,26 @@ ordersRouter.get('/:orderId', async (context) => {
     return context.json({...order, items})
 })
 
+ordersRouter.get('/', async (context) => {
+  const customerId = context.req.query('customerId')
+  const status = context.req.query('status')
 
+  const conditions = []
+
+  if (customerId) {
+    conditions.push(eq(orders.customerId, Number(customerId)))
+  }
+
+  if (status) {
+    conditions.push(eq(orders.status, status))
+  }
+
+  const allOrders = conditions.length > 0
+    ? await db.select().from(orders).where(and(...conditions))
+    : await db.select().from(orders)
+  
+  return context.json(allOrders)
+})
 
 
 export { ordersRouter }
