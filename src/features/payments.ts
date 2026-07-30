@@ -7,15 +7,11 @@ import { PAYMENT_STATUSES } from '../constants.js'
 
 const paymentsRouter = new Hono()
 
-const paymentBaseSchema = zod.object({
+const paymentSchema = zod.object({
     orderId: zod.number().int().positive(),
     amountCents: zod.number().int().positive(),
     method: zod.string().max(30).optional(),
     externalPaymentId: zod.bigint().optional(),
-})
-
-const paymentSchema = paymentBaseSchema.extend({
-    status: zod.enum(PAYMENT_STATUSES).default('pending'),
 })
 
 const paymentUpdateSchema = zod.object({
@@ -39,7 +35,10 @@ paymentsRouter.post('/', async (context) => {
   }
 
   try {
-    const [newPayment] = await db.insert(payments).values(result.data).returning()
+    const [newPayment] = await db.insert(payments).values({
+        ...result.data,
+        status: 'pending',
+    }).returning()
     return context.json(newPayment, 201)
   } catch (err) {
     return context.json({error: 'orderId does not reference an existing order'}, 400)
