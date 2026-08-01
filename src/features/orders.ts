@@ -1,9 +1,10 @@
 import {Hono} from 'hono'
 import {db} from '../db/index.js'
-import {products, discounts, orders, orderItems, orderEvents} from '../db/schema.js'
+import {products, discounts, orders, orderItems, orderEvents, customers} from '../db/schema.js'
 import {z as zod} from 'zod'
 import {eq, inArray, and} from 'drizzle-orm'
 import amqp from 'amqplib'
+import {requireAuth} from '../middleware/auth.js'
 import { RABBITMQ_URL, ORDER_PLACED_QUEUE, ORDER_STATUSES, ALLOWED_TRANSITIONS, TAX_RATE, SHIPPING_CENTS, type OrderStatus } from '../constants.js'
 
 // -------------    Router instance          -----------------
@@ -216,18 +217,33 @@ ordersRouter.get('/:orderId', async (context) => {
   return context.json({...order, items, events})
 })
 
-ordersRouter.get('/', async (context) => {
+ordersRouter.get('/', requireAuth, async (context) => {
+  const user = context.get('user')
   const customerId = context.req.query('customerId')
   const status = context.req.query('status')
 
   const conditions = []
 
-  if (customerId) {
-    conditions.push(eq(orders.customerId, Number(customerId)))
-  }
+  if (user.role === 'admin') {
+    if (customerId) {
+      conditions.push(eq(orders.customerId, Number(customerId)))
+    }
 
-  if (status) {
-    conditions.push(eq(orders.status, status))
+    if (status) {
+      conditions.push(eq(orders.status, status))
+    }
+  } else {
+    const [customer] = await db.select().from(customers).where(eq(customers.userId, user.userId))
+
+    if (!customer) {
+      return context.json({ error: 'No customer record linked to this account'}, 404)
+    }
+
+    conditions.push(eq(orders.customerId, customer.id))
+
+    if (status) {
+      conditions.push(eq(orders.status, status))
+    }
   }
 
   const allOrders = conditions.length > 0
