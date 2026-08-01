@@ -188,12 +188,20 @@ ordersRouter.post('/', async (context) => {
     return context.json(newOrder, 201)
 })
 
-ordersRouter.get('/:orderId', async (context) => {
+ordersRouter.get('/:orderId', requireAuth, async (context) => {
+  const user = context.get('user')
   const orderId = Number(context.req.param('orderId'))
   const [order] = await db.select().from(orders).where(eq(orders.id, orderId))
 
   if (!order) {
     return context.json({error: `No order found for id ${orderId}`}, 404)
+  } else if (user.role === 'customer') {
+    const [customer] = await db.select().from(customers).where(eq(customers.userId, user.userId))
+    if (!customer) {
+      return context.json({ error: 'No customer record linked to this account'} , 404)
+    } else if (customer.id !== order.customerId) {
+      return context.json({ error: 'Access denied'}, 404)
+    }
   }
 
   const items = await db.select({
