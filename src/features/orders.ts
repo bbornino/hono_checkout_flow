@@ -132,13 +132,28 @@ async function publishOrderPlaced(orderId: number) {
 
 // -------------    Routes         -----------------
 
-ordersRouter.post('/', async (context) => {
+ordersRouter.post('/', requireAuth, async (context) => {
+    const user = context.get('user')
     const body = await context.req.json()
     const result = orderCreateSchema.safeParse(body)
 
     if (!result.success) {
         return context.json({ error:zod.flattenError(result.error)}, 400)
     }
+
+    let effectiveCustomerId: number
+
+    if (user.role === 'admin') {
+      effectiveCustomerId = result.data.customerId
+    } else {
+      const [customer] = await db.select().from(customers).where(eq(customers.userId, user.userId))
+
+      if (!customer) {
+        return context.json({ error: 'No customer record linked to this account'}, 404)
+      } 
+
+      effectiveCustomerId = customer.id
+    } 
 
     const totals = await calculateOrderTotals(result.data.items, result.data.discountId)
 
@@ -148,7 +163,7 @@ ordersRouter.post('/', async (context) => {
 
     const newOrder = await db.transaction(async (tx) => {
       const [order] = await tx.insert(orders).values({
-        customerId: result.data.customerId,
+        customerId: effectiveCustomerId,
         shippingAddressId: result.data.shippingAddressId,
         billingAddressId: result.data.billingAddressId,
         discountId: result.data.discountId,
@@ -261,7 +276,13 @@ ordersRouter.get('/', requireAuth, async (context) => {
   return context.json(allOrders)
 })
 
-ordersRouter.patch('/:orderId', async (context) => {
+ordersRouter.patch('/:orderId', requireAuth, async (context) => {
+  const user = context.get('user')
+
+  if (user.role !== 'admin') {
+    return context.json({error: 'Admin access required'}, 403)
+  }
+
   const orderId = Number(context.req.param('orderId'))
   const body = await context.req.json()
   const result = orderStatusUpdateSchema.safeParse(body)
