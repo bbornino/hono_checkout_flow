@@ -13,7 +13,7 @@ const ordersRouter = new Hono()
 
 // -------------    Zod Schemas        -----------------
 const orderCreateSchema = zod.object({
-  customerId: zod.number().int().positive(),
+  customerId: zod.number().int().positive().optional(),
   shippingAddressId: zod.number().int().positive(),
   billingAddressId: zod.number().int().positive(),
   discountId: zod.number().int().positive().optional(),
@@ -144,6 +144,9 @@ ordersRouter.post('/', requireAuth, async (context) => {
     let effectiveCustomerId: number
 
     if (user.role === 'admin') {
+      if (!result.data.customerId) {
+        return context.json({error: 'customerId is required when placing an order as admin'}, 400)
+      }
       effectiveCustomerId = result.data.customerId
     } else {
       const [customer] = await db.select().from(customers).where(eq(customers.userId, user.userId))
