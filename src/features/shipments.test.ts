@@ -46,16 +46,29 @@ describe('Shipments API', () => {
     })
     testProductId = (await productRes.json()).id
 
-    const orderRes = await fetch(`${BASE_URL}/orders`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        customerId: testCustomerId,
-        shippingAddressId: testAddressId,
-        billingAddressId: testAddressId,
-        items: [{ productId: testProductId, quantity: 1 }],
-      }),
-    })
+  const adminEmail = `shipment-admin-${Date.now()}@example.com`
+  await fetch(`${BASE_URL}/auth/signup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: adminEmail, password: 'admin', role: 'admin' }),
+  })
+  const adminLoginRes = await fetch(`${BASE_URL}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: adminEmail, password: 'admin' }),
+  })
+  const adminToken = (await adminLoginRes.json()).token
+
+  const orderRes = await fetch(`${BASE_URL}/orders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
+    body: JSON.stringify({
+      customerId: testCustomerId,
+      shippingAddressId: testAddressId,
+      billingAddressId: testAddressId,
+      items: [{ productId: testProductId, quantity: 1 }],
+    }),
+  })
     testOrderId = (await orderRes.json()).id
   })
 
