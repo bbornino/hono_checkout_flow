@@ -1,5 +1,6 @@
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
+import { corsMiddleware } from './middleware/cors.js'
 
 import {customersRouter} from './features/customers.js'
 import {addressRouter} from './features/addresses.js'
@@ -11,6 +12,8 @@ import {shipmentsRouter} from './features/shipments.js'
 import {authRouter} from './features/auth.js'
 
 const app = new Hono()
+
+app.use('*', corsMiddleware)
 
 app.get('/', (c) => {
   return c.text('Hello Hono!')
