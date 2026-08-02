@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useNavigate } from "react-router"
 import { useAuthStore } from "@/stores/authStore"
+import { jwtDecode } from 'jwt-decode'
 
 const loginSchema = zod.object({
     email: zod.email(),
@@ -43,8 +44,9 @@ function Login() {
         }
 
         const data = await response.json()
-        console.log('Got token:', data.token)
-        setAuth(data.token, data.role ?? 'customer')
+        const decoded = jwtDecode<{userId: number; role: string}>(data.token)
+        setAuth(data.token, decoded.role)
+
         navigate('/')
     }
 
