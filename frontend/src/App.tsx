@@ -1,14 +1,12 @@
-import { Routes, Route, Link } from 'react-router'
+import { Routes, Route } from 'react-router'
+import Navbar from './components/Navbar'
 import Home from './pages/Home'
 import Login from './pages/Login'
-
 
 function App() {
   return (
     <div>
-      <nav>
-        <Link to="/">Home</Link> | <Link to="/login">Login</Link>
-      </nav>
+      <Navbar />
 
       <Routes>
         <Route path="/" element = {<Home />} />
