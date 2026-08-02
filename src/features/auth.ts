@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken'
 import {db} from '../db/index.js'
 import {users, customers} from '../db/schema.js'
 import {z as zod} from 'zod'
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcryptjs'
 import { USER_ROLES, JWT_SECRET } from '../constants.js';
 
 const authRouter = new Hono()
