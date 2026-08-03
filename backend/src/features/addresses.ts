@@ -45,9 +45,28 @@ addressRouter.get('/', requireAuth, async (context) => {
 
 })
 
-addressRouter.post('/', async (context) => {
+addressRouter.post('/', requireAuth, async (context) => {
+  const user = context.get('user')
   const body = await context.req.json()
-  const result = addressSchema.safeParse(body)
+  
+  let effectiveCustomerId: number
+
+  if (user.role === 'admin') {
+    if (!body.customerId) {
+      return context.json({ error: 'customerId is required when creating an address as admin'}, 400)
+    }
+    effectiveCustomerId = body.customerId
+  } else {
+    const [customer] = await db.select().from(customers).where(eq(customers.userId, user.userId))
+
+    if (!customer) {
+      return context.json({error: 'No custome record linked to this account' }, 404)
+    }
+
+    effectiveCustomerId = customer.id
+  }
+  
+  const result = addressSchema.safeParse({ ...body, customerId: effectiveCustomerId})
 
   if(!result.success) {
     return context.json({error: zod.flattenError(result.error)}, 400)
@@ -63,7 +82,8 @@ addressRouter.post('/', async (context) => {
   
 })
 
-addressRouter.get('/:addressId', async(context) => {
+addressRouter.get('/:addressId', requireAuth, async(context) => {
+  const user = context.get('user')
   const addressId = Number(context.req.param('addressId'))
   const [address] = await db.select().from(addresses).where(eq(addresses.id, addressId))
 
@@ -71,10 +91,17 @@ addressRouter.get('/:addressId', async(context) => {
     return context.json({error: `No address found for id ${addressId}`}, 404)
   }
 
+  if (user.role !== 'admin') {
+    const [customer] = await db.select().from(customers).where(eq(customers.userId, user.userId))
+    if (!customer || address.customerId !== customer.id) {
+      return context.json({ error: `No address found for id ${addressId}` }, 404)
+    }
+  }
   return context.json(address)
 })
 
-addressRouter.patch('/:addressId', async(context) => {
+addressRouter.patch('/:addressId', requireAuth, async(context) => {
+  const user = context.get('user')
   const addressId = Number(context.req.param('addressId'))
   const body = await context.req.json()
   const result = addressUpdateSchema.safeParse(body)
@@ -87,25 +114,41 @@ addressRouter.patch('/:addressId', async(context) => {
     return context.json({error: 'No fields provided to update'}, 400)
   }
 
-  const [updatedAddress] = await db.update(addresses).set(result.data).where(eq(addresses.id, addressId)).returning()
+  const [existingAddress] = await db.select().from(addresses).where(eq(addresses.id, addressId))
 
-  if (!updatedAddress) {
+  if (!existingAddress) {
     return context.json({error: `No address found for id ${addressId}`}, 404)
   }
 
+  if (user.role !== 'admin') {
+    const [customer] = await db.select().from(customers).where(eq(customers.userId, user.userId))
+    if (!customer || existingAddress.customerId !== customer.id) {
+      return context.json({error: `No address found for id ${addressId}`}, 404)
+    }
+  }
+
+  const [updatedAddress] = await db.update(addresses).set(result.data).where(eq(addresses.id, addressId)).returning()
   return context.json(updatedAddress)
 })
 
-addressRouter.delete('/:addressId', async(context) => {
+addressRouter.delete('/:addressId', requireAuth, async(context) => {
+  const user = context.get('user')
   const addressId = Number(context.req.param('addressId'))
+
+  const [existingAddress] = await db.select().from(addresses).where(eq(addresses.id, addressId))
+  if (!existingAddress) {
+    return context.json({ error: `No address found for id ${addressId}`}, 404)
+  }
+
+  if (user.role !== 'admin') {
+    const [customer] = await db.select().from(customers).where(eq(customers.userId, user.userId))
+    if (!customer || existingAddress.customerId !== customer.id) {
+      return context.json({ error: `No address found for id ${addressId}`}, 404)
+    }
+  }
 
   try {
     const [deletedAddress] = await db.delete(addresses).where(eq(addresses.id, addressId)).returning()
-
-    if (!deletedAddress) {
-      return context.json({error:`No address found for id ${addressId}`}, 404)
-    }
-
     return context.json(deletedAddress)
   } catch (err) {
     return context.json({error: 'Cannot delete address with existing orders'}, 409)
