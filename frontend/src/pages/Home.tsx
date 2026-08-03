@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { useCartStore } from '@/stores/cartStore'
 
 type Product = {
   id: number
@@ -18,7 +20,7 @@ function Home() {
     queryFn: () =>
       fetch(`${import.meta.env.VITE_API_URL}/products`).then((res) => res.json()),
   })
-
+  const addItem = useCartStore((state => state.addItem))
 
   if (error) return <p>Something went wrong.</p>
 
@@ -46,6 +48,11 @@ function Home() {
                                 ${(product.priceCents / 100).toFixed(2)}
                             </p>
                             <p className="text-sm text-gray-500">SKU: {product.sku}</p>
+                            <Button size="sm" className="mt-2 w-full"
+                            onClick={() =>
+                                addItem({productId: product.id, name: product.name, priceCents: product.priceCents})
+                            }
+                            > Add to Cart </Button>
                         </CardContent>
                     </Card>
                 ))

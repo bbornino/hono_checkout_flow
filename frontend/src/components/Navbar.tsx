@@ -1,11 +1,15 @@
 import { Link, useNavigate } from 'react-router'
 import { useAuthStore } from '@/stores/authStore'
+import { useCartStore } from '@/stores/cartStore'
 import { Button } from '@/components/ui/button'
 
 function Navbar() {
     const navigate = useNavigate()
     const token = useAuthStore((state) => state.token)
     const logout = useAuthStore((state) => state.logout)
+    const cartCount = useCartStore((state) =>
+        state.items.reduce((sum, item) => sum + item.quantity, 0)
+    )
 
     function handleLogout() {
         logout()
@@ -17,6 +21,9 @@ function Navbar() {
                 <div className="flex items-center gap-6">
                     <Link to="/" className="text-lg font-bold">Hono Checkout Flow</Link>
                     <Link to="/" className="text-sm text-gray-600 hover:text-black">Products</Link>
+                    <Link to="/cart" className='text-sm text-gray-600 hover:text-black'>
+                        Cart {cartCount > 0 && `(${cartCount})`}
+                    </Link>
 
                     {token ? (
                         <div>
