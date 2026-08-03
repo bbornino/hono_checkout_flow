@@ -32,7 +32,10 @@ function Navbar() {
                         </div>
                         
                     ) : (
-                        <Link to="/login" className="text-sm text-gray-600 hover:text-black">Login</Link>
+                        <div>
+                            <Link to="/login" className="text-sm text-gray-600 hover:text-black">Login</Link>
+                            <Link to="/signup" className="text-sm text-gray-600 hover:text-black">Sign Up</Link>
+                        </div>
                     )}
                 </div>
             </div>
