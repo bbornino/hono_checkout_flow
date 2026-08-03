@@ -19,7 +19,11 @@ function Navbar() {
                     <Link to="/" className="text-sm text-gray-600 hover:text-black">Products</Link>
 
                     {token ? (
-                        <Button variant="outline" onClick={handleLogout}>Log Out</Button>
+                        <div>
+                            <Link to="/orders" className='text-sm text-gray-600 hover:text-black'>Orders</Link>
+                            <Button variant="outline" onClick={handleLogout}>Log Out</Button>
+                        </div>
+                        
                     ) : (
                         <Link to="/login" className="text-sm text-gray-600 hover:text-black">Login</Link>
                     )}
