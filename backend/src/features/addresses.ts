@@ -1,8 +1,9 @@
 import {Hono} from 'hono'
 import {db} from '../db/index.js'
-import {addresses} from '../db/schema.js'
+import {addresses, customers} from '../db/schema.js'
 import {z as zod} from 'zod'
 import {eq} from 'drizzle-orm'
+import { requireAuth } from '../middleware/auth.js'
 const addressRouter = new Hono()
 
 const addressBaseSchema = zod.object({
@@ -25,9 +26,23 @@ const addressSchema = addressBaseSchema.extend({
 
 const addressUpdateSchema = addressBaseSchema.omit({customerId: true}).partial()
 
-addressRouter.get('/', async (context) => {
-  const allAddresses = await db.select().from(addresses)
-  return context.json(allAddresses)
+addressRouter.get('/', requireAuth, async (context) => {
+  const user = context.get('user')
+
+  if (user.role === 'admin') {
+    const allAddresses = await db.select().from(addresses)
+    return context.json(allAddresses)
+  }
+
+  const [customer] = await db.select().from(customers).where(eq(customers.userId, user.userId))
+
+  if (!customer) {
+    return context.json({ error: 'No customer record linked to this account' }, 404)
+  }
+
+  const myAddresses = await db.select().from(addresses).where(eq(addresses.customerId, customer.id))
+  return context.json(myAddresses)
+
 })
 
 addressRouter.post('/', async (context) => {
