@@ -3,7 +3,7 @@ import {db} from '../db/index.js'
 import {discounts} from '../db/schema.js'
 import {z as zod} from 'zod'
 import {eq} from 'drizzle-orm'
-import { requireAuth } from '../middleware/auth.js'
+import { requireAuth, requireAdmin } from '../middleware/auth.js'
 
 const discountsRouter = new Hono()
 
@@ -76,25 +76,12 @@ const discountUpdateSchema = discountBaseSchema.partial().refine(
   }
 )
 
-function requireAdmin(context: any) {
-  const user = context.get('user')
-  if (user.role !== 'admin') {
-    return context.json({ error: 'Admin access required'}, 403)
-  }
-}
-
-discountsRouter.get('/', requireAuth, async (context) => {
-  const denied = requireAdmin(context)
-  if (denied) return denied
-
+discountsRouter.get('/', requireAuth, requireAdmin, async (context) => {
   const allDiscounts = await db.select().from(discounts)
   return context.json(allDiscounts)
 })
 
-discountsRouter.post('/', requireAuth, async (context) => {
-  const denied = requireAdmin(context)
-  if (denied) return denied
-
+discountsRouter.post('/', requireAuth, requireAdmin, async (context) => {
   const body = await context.req.json()
   const result = discountSchema.safeParse(body)
 
@@ -110,10 +97,7 @@ discountsRouter.post('/', requireAuth, async (context) => {
   }
 })
 
-discountsRouter.get('/:discountId', requireAuth, async(context) => {
-  const denied = requireAdmin(context)
-  if (denied) return denied
-
+discountsRouter.get('/:discountId', requireAuth, requireAdmin, async(context) => {
   const discountId = Number(context.req.param('discountId'))
   const [discount] = await db.select().from(discounts).where(eq(discounts.id, discountId))
 
@@ -124,10 +108,7 @@ discountsRouter.get('/:discountId', requireAuth, async(context) => {
   return context.json(discount)
 })
 
-discountsRouter.patch('/:discountId', requireAuth, async(context) => {
-  const denied = requireAdmin(context)
-  if (denied) return denied
-
+discountsRouter.patch('/:discountId', requireAuth, requireAdmin, async(context) => {
   const discountId = Number(context.req.param('discountId'))
   const body = await context.req.json()
   const result = discountUpdateSchema.safeParse(body)
@@ -154,10 +135,7 @@ discountsRouter.patch('/:discountId', requireAuth, async(context) => {
   }
 })
 
-discountsRouter.delete('/:discountId', requireAuth, async(context) => {
-  const denied = requireAdmin(context)
-  if (denied) return denied
-
+discountsRouter.delete('/:discountId', requireAuth, requireAdmin, async(context) => {
   const discountId = Number(context.req.param('discountId'))
 
   try {

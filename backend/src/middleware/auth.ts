@@ -27,3 +27,13 @@ export const requireAuth = createMiddleware<{
         return context.json({error: 'Invalid or expired token'}, 401)
     }
 })
+
+export const requireAdmin = createMiddleware<{
+    Variables: { user: JwtPayload }
+}>(async (context, next) => {
+    const user = context.get('user')
+    if (user.role !== 'admin') {
+        return context.json({error: 'Admin access required'}, 403)
+    }
+    await next()
+})
