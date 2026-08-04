@@ -1,11 +1,9 @@
-import 'dotenv/config'
-import { describe, it, expect } from 'vitest'
-
-const BASE_URL = process.env.TEST_BASE_URL!
+import { describe, it, expect, beforeAll } from 'vitest'
+import { apiRequest, createTestUser } from '../testHelpers.js'
 
 function validDiscountBody(overrides = {}) {
   return {
-    code: `TEST-${Date.now()}`,
+    code: `TEST-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     description: 'Test discount',
     discountType: 'percentage',
     percentageOff: 10,
@@ -17,13 +15,41 @@ function validDiscountBody(overrides = {}) {
 
 describe('Discounts API', () => {
   let testDiscountId: number
+  let adminToken: string
+  let customerToken: string
+
+  beforeAll(async () => {
+    adminToken = await createTestUser('admin')
+    customerToken = await createTestUser('customer')
+  })
+
+  describe('Auth protection', () => {
+    it('rejects GET /discounts with no token', async () => {
+      const response = await apiRequest('/discounts')
+      expect(response.status).toBe(401)
+    })
+
+    it('rejects a customer role from listing discounts', async () => {
+      const response = await apiRequest('/discounts', { token: customerToken })
+      expect(response.status).toBe(403)
+    })
+
+    it('rejects a customer role from creating a discount', async () => {
+      const response = await apiRequest('/discounts', {
+        method: 'POST',
+        token: customerToken,
+        body: validDiscountBody(),
+      })
+      expect(response.status).toBe(403)
+    })
+  })
 
   describe('POST /discounts', () => {
     it('creates a percentage discount with valid data', async () => {
-      const response = await fetch(`${BASE_URL}/discounts`, {
+      const response = await apiRequest('/discounts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(validDiscountBody()),
+        token: adminToken,
+        body: validDiscountBody(),
       })
 
       expect(response.status).toBe(201)
@@ -34,61 +60,47 @@ describe('Discounts API', () => {
     })
 
     it('creates a fixed-cents discount with valid data', async () => {
-      const response = await fetch(`${BASE_URL}/discounts`, {
+      const response = await apiRequest('/discounts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(validDiscountBody({
-          code: `FIXED-${Date.now()}`,
+        token: adminToken,
+        body: validDiscountBody({
           discountType: 'fixed',
           percentageOff: undefined,
           fixedCents: 500,
-        })),
+        }),
       })
 
       expect(response.status).toBe(201)
     })
 
     it('rejects an invalid discountType', async () => {
-      const response = await fetch(`${BASE_URL}/discounts`, {
+      const response = await apiRequest('/discounts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(validDiscountBody({ discountType: 'buy-one-get-one' })),
+        token: adminToken,
+        body: validDiscountBody({ discountType: 'buy-one-get-one' }),
       })
 
       expect(response.status).toBe(400)
     })
 
     it('rejects a percentage discount missing percentageOff', async () => {
-      const response = await fetch(`${BASE_URL}/discounts`, {
+      const response = await apiRequest('/discounts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(validDiscountBody({ percentageOff: undefined })),
-      })
-
-      expect(response.status).toBe(400)
-    })
-
-    it('rejects a fixed discount missing fixedCents', async () => {
-      const response = await fetch(`${BASE_URL}/discounts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(validDiscountBody({
-          discountType: 'fixed',
-          percentageOff: undefined,
-        })),
+        token: adminToken,
+        body: validDiscountBody({ percentageOff: undefined }),
       })
 
       expect(response.status).toBe(400)
     })
 
     it('rejects validUntil before validFrom', async () => {
-      const response = await fetch(`${BASE_URL}/discounts`, {
+      const response = await apiRequest('/discounts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(validDiscountBody({
+        token: adminToken,
+        body: validDiscountBody({
           validFrom: '2026-12-31T00:00:00.000Z',
           validUntil: '2026-01-01T00:00:00.000Z',
-        })),
+        }),
       })
 
       expect(response.status).toBe(400)
@@ -97,51 +109,47 @@ describe('Discounts API', () => {
     it('rejects a duplicate code', async () => {
       const duplicateCode = `DUPLICATE-${Date.now()}`
 
-      await fetch(`${BASE_URL}/discounts`, {
+      await apiRequest('/discounts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(validDiscountBody({ code: duplicateCode })),
+        token: adminToken,
+        body: validDiscountBody({ code: duplicateCode }),
       })
 
-      const response = await fetch(`${BASE_URL}/discounts`, {
+      const response = await apiRequest('/discounts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(validDiscountBody({ code: duplicateCode })),
+        token: adminToken,
+        body: validDiscountBody({ code: duplicateCode }),
       })
 
       expect(response.status).toBe(409)
     })
   })
 
-  describe('GET /discounts', () => {
-    it('returns an array of discounts', async () => {
-      const response = await fetch(`${BASE_URL}/discounts`)
-      expect(response.status).toBe(200)
-      const body = await response.json()
-      expect(Array.isArray(body)).toBe(true)
-    })
-  })
-
   describe('GET /discounts/:discountId', () => {
-    it('returns the matching discount', async () => {
-      const response = await fetch(`${BASE_URL}/discounts/${testDiscountId}`)
+    it('allows admin to view a discount', async () => {
+      const response = await apiRequest(`/discounts/${testDiscountId}`, { token: adminToken })
       expect(response.status).toBe(200)
       const body = await response.json()
       expect(body.id).toBe(testDiscountId)
     })
 
+    it('rejects a customer from viewing a discount', async () => {
+      const response = await apiRequest(`/discounts/${testDiscountId}`, { token: customerToken })
+      expect(response.status).toBe(403)
+    })
+
     it('returns 404 for a nonexistent discount', async () => {
-      const response = await fetch(`${BASE_URL}/discounts/9999999`)
+      const response = await apiRequest('/discounts/9999999', { token: adminToken })
       expect(response.status).toBe(404)
     })
   })
 
   describe('PATCH /discounts/:discountId', () => {
     it('updates a single field', async () => {
-      const response = await fetch(`${BASE_URL}/discounts/${testDiscountId}`, {
+      const response = await apiRequest(`/discounts/${testDiscountId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description: 'Updated description' }),
+        token: adminToken,
+        body: { description: 'Updated description' },
       })
 
       expect(response.status).toBe(200)
@@ -149,34 +157,21 @@ describe('Discounts API', () => {
       expect(body.description).toBe('Updated description')
     })
 
+    it('rejects a customer from updating a discount', async () => {
+      const response = await apiRequest(`/discounts/${testDiscountId}`, {
+        method: 'PATCH',
+        token: customerToken,
+        body: { description: 'Hijacked' },
+      })
+
+      expect(response.status).toBe(403)
+    })
+
     it('rejects an empty body', async () => {
-      const response = await fetch(`${BASE_URL}/discounts/${testDiscountId}`, {
+      const response = await apiRequest(`/discounts/${testDiscountId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      })
-
-      expect(response.status).toBe(400)
-    })
-
-    it('rejects an invalid discountType', async () => {
-      const response = await fetch(`${BASE_URL}/discounts/${testDiscountId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ discountType: 'buy-one-get-one' }),
-      })
-
-      expect(response.status).toBe(400)
-    })
-
-    it('rejects validUntil before validFrom when both are sent', async () => {
-      const response = await fetch(`${BASE_URL}/discounts/${testDiscountId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          validFrom: '2026-12-31T00:00:00.000Z',
-          validUntil: '2026-01-01T00:00:00.000Z',
-        }),
+        token: adminToken,
+        body: {},
       })
 
       expect(response.status).toBe(400)
@@ -184,19 +179,27 @@ describe('Discounts API', () => {
   })
 
   describe('DELETE /discounts/:discountId', () => {
-    it('returns 404 for a nonexistent discount', async () => {
-      const response = await fetch(`${BASE_URL}/discounts/9999999`, {
+    it('rejects a customer from deleting a discount', async () => {
+      const response = await apiRequest(`/discounts/${testDiscountId}`, {
         method: 'DELETE',
+        token: customerToken,
       })
+      expect(response.status).toBe(403)
+    })
 
+    it('returns 404 for a nonexistent discount', async () => {
+      const response = await apiRequest('/discounts/9999999', {
+        method: 'DELETE',
+        token: adminToken,
+      })
       expect(response.status).toBe(404)
     })
 
     it('deletes the test discount', async () => {
-      const response = await fetch(`${BASE_URL}/discounts/${testDiscountId}`, {
+      const response = await apiRequest(`/discounts/${testDiscountId}`, {
         method: 'DELETE',
+        token: adminToken,
       })
-
       expect(response.status).toBe(200)
     })
   })

@@ -34,7 +34,10 @@ export async function createTestUser(
 
     await apiRequest('/auth/signup', {
         method: 'POST',
-        body: { email, password, role, existingCustomerId},
+        body: { email, password, role, existingCustomerId,
+            firstName: existingCustomerId ? undefined : 'Test',
+            lastName: existingCustomerId ? undefined : 'User',
+        },
     })
 
     const loginRes = await apiRequest('/auth/login', { method: 'POST', body: {email, password} })

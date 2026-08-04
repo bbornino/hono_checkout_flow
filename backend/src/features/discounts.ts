@@ -91,7 +91,7 @@ discountsRouter.get('/', requireAuth, async (context) => {
   return context.json(allDiscounts)
 })
 
-discountsRouter.post('/', requireAdmin, async (context) => {
+discountsRouter.post('/', requireAuth, async (context) => {
   const denied = requireAdmin(context)
   if (denied) return denied
 
