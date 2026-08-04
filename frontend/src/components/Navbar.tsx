@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router'
 import { useAuthStore } from '@/stores/authStore'
 import { useCartStore } from '@/stores/cartStore'
 import { Button } from '@/components/ui/button'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, } from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, } from '@/components/ui/dropdown-menu'
 
 function Navbar() {
     const navigate = useNavigate()
@@ -35,16 +35,17 @@ function Navbar() {
                             <Button variant="outline">{email}</Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
                             <DropdownMenuItem asChild>
-                            <Link to="/orders">Orders</Link>
+                                <Link to="/account">My Account</Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>
-                            <Link to="/addresses">Addresses</Link>
+                                <Link to="/orders">Orders</Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                                <Link to="/addresses">My Addresses</Link>
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={handleLogout}>Log Out</DropdownMenuItem>
+                                <DropdownMenuItem onClick={handleLogout}>Log Out</DropdownMenuItem>
                         </DropdownMenuContent>
                         </DropdownMenu>
                     ) : (

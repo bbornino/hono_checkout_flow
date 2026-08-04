@@ -7,6 +7,7 @@ import Orders from './pages/Orders'
 import Cart from './pages/Cart'
 import Signup from './pages/Signup'
 import Addresses from './pages/Addresses'
+import Account from './pages/Account'
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
         <Route element={<ProtectedRoute />}>
           <Route path="/orders" element={<Orders />} />
           <Route path="/addresses" element={<Addresses />} />
+          <Route path="/account" element={<Account />} />
         </Route>
       </Routes>
     </div>
