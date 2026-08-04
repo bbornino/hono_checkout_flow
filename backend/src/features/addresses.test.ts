@@ -119,6 +119,24 @@ describe('Addresses API', () => {
 
       expect(response.status).toBe(401)
     })
+
+    it('accepts a lowercase country code and normalizes it to uppercase', async () => {
+      const response = await apiRequest('/addresses', {
+        method: 'POST',
+        token: customerToken,
+        body: {
+          addressLine1: '1 Lowercase Ln',
+          city: 'Caseville',
+          state: 'CA',
+          postalCode: '90001',
+          country: 'us',
+        },
+      })
+
+      expect(response.status).toBe(201)
+      const body = await response.json()
+      expect(body.country).toBe('US')
+    })
   })
 
   describe('GET /addresses', () => {
@@ -202,6 +220,18 @@ describe('Addresses API', () => {
       })
 
       expect(response.status).toBe(400)
+    })
+
+    it('accepts a lowercase country code on update and normalizes it', async () => {
+      const response = await apiRequest(`/addresses/${testAddressId}`, {
+        method: 'PATCH',
+        token: customerToken,
+        body: { country: 'ca' },
+      })
+
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body.country).toBe('CA')
     })
   })
 

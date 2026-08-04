@@ -60,7 +60,7 @@ function Signup() {
 
         const loginData = await loginResponse.json()
         const decoded = jwtDecode<{ userId: number; role: string }>(loginData.token)
-        setAuth(loginData.token, decoded.role)
+        setAuth(loginData.token, decoded.role, values.email)
         navigate('/')
     }
 

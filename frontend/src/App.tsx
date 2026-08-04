@@ -6,6 +6,7 @@ import Login from './pages/Login'
 import Orders from './pages/Orders'
 import Cart from './pages/Cart'
 import Signup from './pages/Signup'
+import Addresses from './pages/Addresses'
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
 
         <Route element={<ProtectedRoute />}>
           <Route path="/orders" element={<Orders />} />
+          <Route path="/addresses" element={<Addresses />} />
         </Route>
       </Routes>
     </div>

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { BASE_URL } from '../constants.js'
+import { apiRequest, createTestUser } from '../testHelpers.js'
 
 describe('Payments API', () => {
   let testCustomerId: number
@@ -9,85 +9,67 @@ describe('Payments API', () => {
   let testPaymentId: number
 
   beforeAll(async () => {
-    const customerRes = await fetch(`${BASE_URL}/customers`, {
+    const customerRes = await apiRequest('/customers', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      body: {
         firstName: 'Payment',
         lastName: 'Tester',
         email: `payment-test-${Date.now()}@example.com`,
-      }),
+      },
     })
     testCustomerId = (await customerRes.json()).id
 
-    const addressRes = await fetch(`${BASE_URL}/addresses`, {
+    const adminToken = await createTestUser('admin')
+
+    const addressRes = await apiRequest('/addresses', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      token: adminToken,
+      body: {
         customerId: testCustomerId,
         addressLine1: '123 Payment St',
         city: 'Testville',
         state: 'CA',
         postalCode: '90210',
         country: 'US',
-      }),
+      },
     })
     testAddressId = (await addressRes.json()).id
 
-    const productRes = await fetch(`${BASE_URL}/products`, {
+    const productRes = await apiRequest('/products', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      body: {
         sku: `PAYMENT-TEST-${Date.now()}`,
         name: 'Payment Test Product',
         priceCents: 1000,
         weightOz: 5,
-      }),
+      },
     })
     testProductId = (await productRes.json()).id
 
-  const adminEmail = `payment-admin-${Date.now()}@example.com`
-  await fetch(`${BASE_URL}/auth/signup`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: adminEmail, password: 'admin', role: 'admin' }),
-  })
-  const adminLoginRes = await fetch(`${BASE_URL}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: adminEmail, password: 'admin' }),
-  })
-  const adminToken = (await adminLoginRes.json()).token
-
-  const orderRes = await fetch(`${BASE_URL}/orders`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
-    body: JSON.stringify({
-      customerId: testCustomerId,
-      shippingAddressId: testAddressId,
-      billingAddressId: testAddressId,
-      items: [{ productId: testProductId, quantity: 1 }],
-    }),
-  })
+    const orderRes = await apiRequest('/orders', {
+      method: 'POST',
+      token: adminToken,
+      body: {
+        customerId: testCustomerId,
+        shippingAddressId: testAddressId,
+        billingAddressId: testAddressId,
+        items: [{ productId: testProductId, quantity: 1 }],
+      },
+    })
     testOrderId = (await orderRes.json()).id
   })
 
   afterAll(async () => {
-    await fetch(`${BASE_URL}/products/${testProductId}`, { method: 'DELETE' })
-    await fetch(`${BASE_URL}/addresses/${testAddressId}`, { method: 'DELETE' })
-    await fetch(`${BASE_URL}/customers/${testCustomerId}`, { method: 'DELETE' })
+    await apiRequest(`/products/${testProductId}`, { method: 'DELETE' })
+    await apiRequest(`/addresses/${testAddressId}`, { method: 'DELETE' })
+    await apiRequest(`/customers/${testCustomerId}`, { method: 'DELETE' })
   })
 
   describe('POST /payments', () => {
     it('creates a payment defaulting to pending status', async () => {
-      const response = await fetch(`${BASE_URL}/payments`, {
+      const response = await apiRequest('/payments', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: testOrderId,
-          amountCents: 1080,
-          method: 'card',
-        }),
+        body: { orderId: testOrderId, amountCents: 1080, method: 'card' },
       })
 
       expect(response.status).toBe(201)
@@ -97,29 +79,18 @@ describe('Payments API', () => {
     })
 
     it('rejects a payment with a nonexistent orderId', async () => {
-      const response = await fetch(`${BASE_URL}/payments`, {
+      const response = await apiRequest('/payments', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: 9999999,
-          amountCents: 1080,
-          method: 'card',
-        }),
+        body: { orderId: 9999999, amountCents: 1080, method: 'card' },
       })
 
       expect(response.status).toBe(400)
     })
 
     it('rejects an attempt to set status on create', async () => {
-      const response = await fetch(`${BASE_URL}/payments`, {
+      const response = await apiRequest('/payments', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: testOrderId,
-          amountCents: 1080,
-          method: 'card',
-          status: 'succeeded',
-        }),
+        body: { orderId: testOrderId, amountCents: 1080, method: 'card', status: 'succeeded' },
       })
 
       expect(response.status).toBe(201)
@@ -130,27 +101,23 @@ describe('Payments API', () => {
 
   describe('GET /payments/:paymentId', () => {
     it('returns the matching payment', async () => {
-      const response = await fetch(`${BASE_URL}/payments/${testPaymentId}`)
+      const response = await apiRequest(`/payments/${testPaymentId}`)
       expect(response.status).toBe(200)
       const body = await response.json()
       expect(body.id).toBe(testPaymentId)
     })
 
     it('returns 404 for a nonexistent payment', async () => {
-      const response = await fetch(`${BASE_URL}/payments/9999999`)
+      const response = await apiRequest('/payments/9999999')
       expect(response.status).toBe(404)
     })
   })
 
   describe('PATCH /payments/:paymentId', () => {
     it('marks a payment as succeeded with a processedAt timestamp', async () => {
-      const response = await fetch(`${BASE_URL}/payments/${testPaymentId}`, {
+      const response = await apiRequest(`/payments/${testPaymentId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: 'succeeded',
-          processedAt: new Date().toISOString(),
-        }),
+        body: { status: 'succeeded', processedAt: new Date().toISOString() },
       })
 
       expect(response.status).toBe(200)
@@ -159,10 +126,9 @@ describe('Payments API', () => {
     })
 
     it('rejects an empty body', async () => {
-      const response = await fetch(`${BASE_URL}/payments/${testPaymentId}`, {
+      const response = await apiRequest(`/payments/${testPaymentId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: {},
       })
 
       expect(response.status).toBe(400)

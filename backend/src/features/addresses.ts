@@ -14,7 +14,7 @@ const addressBaseSchema = zod.object({
     city: zod.string().min(3).max(100),
     state: zod.string().min(2).max(50),
     postalCode: zod.string().min(5).max(20),
-    country: zod.string().length(2).regex(/^[A-Z]{2}$/, 'Must be a 2-letter ISO country code').toUpperCase(), 
+    country: zod.string().length(2).regex(/^[A-Za-z]{2}$/, 'Must be a 2-letter ISO country code').toUpperCase(),
     isDefaultShipping: zod.boolean(),
     isDefaultBilling: zod.boolean(),
 })

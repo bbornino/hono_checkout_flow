@@ -22,32 +22,6 @@ describe('Orders API', () => {
     const customer = await customerRes.json()
     testCustomerId = customer.id
 
-    const addressRes = await fetch(`${BASE_URL}/addresses`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        customerId: testCustomerId,
-        addressLine1: '123 Test St',
-        city: 'Testville',
-        state: 'CA',
-        postalCode: '90210',
-        country: 'US',
-      }),
-    })
-    testAddressId = (await addressRes.json()).id
-
-    const productRes = await fetch(`${BASE_URL}/products`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sku: `ORDER-TEST-${Date.now()}`,
-        name: 'Order Test Product',
-        priceCents: 1000,
-        weightOz: 5,
-      }),
-    })
-    testProductId = (await productRes.json()).id
-
     const adminEmail = `order-admin-${Date.now()}@example.com`
     await fetch(`${BASE_URL}/auth/signup`, {
       method: 'POST',
@@ -61,11 +35,39 @@ describe('Orders API', () => {
     })
     adminToken = (await adminLoginRes.json()).token
 
+    const addressRes = await fetch(`${BASE_URL}/addresses`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({
+        customerId: testCustomerId,
+        addressLine1: '123 Test St',
+        city: 'Testville',
+        state: 'CA',
+        postalCode: '90210',
+        country: 'US',
+      }),
+    })
+    const address = await addressRes.json()
+    testAddressId = address.id
+
+    const productRes = await fetch(`${BASE_URL}/products`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sku: `ORDER-TEST-${Date.now()}`,
+        name: 'Order Test Product',
+        priceCents: 1000,
+        weightOz: 5,
+      }),
+    })
+    testProductId = (await productRes.json()).id
+
+    const customerEmail = customer.email
     await fetch(`${BASE_URL}/auth/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        email: customer.email,
+        email: customerEmail,
         password: 'customer',
         role: 'customer',
         existingCustomerId: testCustomerId,
@@ -74,7 +76,7 @@ describe('Orders API', () => {
     const customerLoginRes = await fetch(`${BASE_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: customer.email, password: 'customer' }),
+      body: JSON.stringify({ email: customerEmail, password: 'customer' }),
     })
     customerToken = (await customerLoginRes.json()).token
   })

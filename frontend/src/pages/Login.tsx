@@ -45,7 +45,7 @@ function Login() {
 
         const data = await response.json()
         const decoded = jwtDecode<{userId: number; role: string}>(data.token)
-        setAuth(data.token, decoded.role)
+        setAuth(data.token, decoded.role, values.email)
 
         navigate('/')
     }
