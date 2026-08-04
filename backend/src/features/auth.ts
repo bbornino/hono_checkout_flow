@@ -1,9 +1,10 @@
 import {Hono} from 'hono'
 import {eq} from 'drizzle-orm'
 import jwt from 'jsonwebtoken'
+import { requireAuth } from '../middleware/auth.js'
 import {db} from '../db/index.js'
 import {users, customers} from '../db/schema.js'
-import {z as zod} from 'zod'
+import {flattenError, z as zod} from 'zod'
 import bcrypt from 'bcryptjs'
 import { USER_ROLES, JWT_SECRET } from '../constants.js';
 
@@ -22,6 +23,49 @@ const loginSchema = zod.object({
     email: zod.email(),
     password: zod.string(),
 })
+
+const changePasswordSchema = zod.object({
+    currentPassword: zod.string(),
+    newPassword: zod.string().min(2),
+})
+
+authRouter.patch('/password', requireAuth, async (context) => {
+    const user = context.get('user')
+    const body = await context.req.json()
+    const result = changePasswordSchema.safeParse(body)
+
+    if (!result.success) {
+        return context.json({error: flattenError(result.error) }, 400)
+    }
+
+    const [existingUser] = await db.select().from(users).where(eq(users.id, user.userId))
+    if (!existingUser) {
+        return context.json({error: 'User not found'}, 404)
+    }
+
+    const currentPasswordMatches = await bcrypt.compare(result.data.currentPassword, existingUser.passwordHash)
+    if (!currentPasswordMatches) {
+        return context.json({ error: 'Current password is incorrect'}, 401)
+    }
+
+    const newPasswordHash = await bcrypt.hash(result.data.newPassword, 10)
+    try {
+        const [updatedUser] = await db
+            .update(users)
+            .set({ passwordHash: newPasswordHash })
+            .where(eq(users.id, user.userId))
+            .returning()
+
+        if (!updatedUser) {
+            return context.json({ error: 'User not found' }, 404)
+        }
+
+        return context.json({ message: 'Password updated successfully' })
+    } catch (err) {
+        return context.json({ error: 'Failed to update password' }, 500)
+    }
+})
+
 
 authRouter.post('/signup', async (context) => {
     const body = await context.req.json()
