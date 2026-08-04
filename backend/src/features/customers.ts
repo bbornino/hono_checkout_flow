@@ -1,8 +1,9 @@
 import {Hono} from 'hono'
 import {db} from '../db/index.js'
-import {customers} from '../db/schema.js'
+import {customers, users} from '../db/schema.js'
 import {z as zod} from 'zod'
 import {eq} from 'drizzle-orm'
+import { requireAuth } from '../middleware/auth.js'
 const customersRouter = new Hono()
 
 const customerBaseSchema = zod.object({
@@ -21,7 +22,12 @@ const customerSchema = customerBaseSchema.extend({
 
 const customerUpdateSchema = customerBaseSchema.partial()
 
-customersRouter.get('/', async (context) => {
+customersRouter.get('/', requireAuth, async (context) => {
+  const user = context.get('user')
+
+  if (user.role !== 'admin') {
+    return context.json({error: 'Admin access required'}, 403)
+  }
   const allCustomers = await db.select().from(customers)
   return context.json(allCustomers)
 })
@@ -38,7 +44,8 @@ customersRouter.post('/', async (context) => {
   return context.json(newCustomer, 201)
 })
 
-customersRouter.get('/:customerId', async(context) => {
+customersRouter.get('/:customerId', requireAuth, async(context) => {
+  const user = context.get('user')
   const customerId = Number(context.req.param('customerId'))
   const [customer] = await db.select().from(customers).where(eq(customers.id, customerId))
 
@@ -46,14 +53,19 @@ customersRouter.get('/:customerId', async(context) => {
     return context.json({error: `No customer found for id ${customerId}`}, 404)
   }
 
+  if (user.role !== 'admin' && customer.userId !== user.userId) {
+    return context.json({error: `No customer found for id ${customerId}`}, 404)
+  }
+
   return context.json(customer)
 })
 
-customersRouter.patch('/:customerId', async(context) => {
+customersRouter.patch('/:customerId', requireAuth, async(context) => {
+  const user = context.get('user')
   const customerId = Number(context.req.param('customerId'))
   const body = await context.req.json()
-  const result = customerUpdateSchema.safeParse(body)
   
+  const result = customerUpdateSchema.safeParse(body)
   if (!result.success) {
     return context.json({error: zod.flattenError(result.error)}, 400)
   }
@@ -62,24 +74,47 @@ customersRouter.patch('/:customerId', async(context) => {
     return context.json({error: 'No fields provided to update'}, 400)
   }
 
-  const [updatedCustomer] = await db.update(customers).set(result.data).where(eq(customers.id, customerId)).returning()
-
-  if (!updatedCustomer) {
+  const [existingCustomer] = await db.select().from(customers).where(eq(customers.id, customerId))
+  if (!existingCustomer) {
     return context.json({error: `No customer found for id ${customerId}`}, 404)
   }
 
-  return context.json(updatedCustomer)
+  if (user.role !== 'admin' && existingCustomer.userId !== user.userId) {
+    return context.json({error: `No customer found for id ${customerId}`}, 404)
+  }
+
+  try {
+    const updatedCustomer = await db.transaction(async (tx) => {
+      const [updated] = await db.update(customers).set(result.data).where(eq(customers.id, customerId)).returning()
+
+      if (result.data.email && existingCustomer.userId) {
+        await tx.update(users).set({ email: result.data.email }).where(eq(users.id, existingCustomer.userId))
+      }
+
+      return updated
+    })
+    return context.json(updatedCustomer)
+
+  } catch (err) {
+    return context.json({ error: 'That email is alrady in use' }, 409)
+  }
 })
 
-customersRouter.delete('/:customerId', async(context) => {
+customersRouter.delete('/:customerId', requireAuth, async(context) => {
+  const user = context.get('user')
   const customerId = Number(context.req.param('customerId'))
+
+  const [existingCustomer] = await db.select().from(customers).where(eq(customers.id, customerId))
+  if (!existingCustomer) {
+    return context.json({error:`No customer found for id ${customerId}`}, 404)
+  }
+
+  if (user.role !== 'admin' && existingCustomer.userId !== user.userId) {
+    return context.json({error: `No customer found for id ${customerId}`}, 404)
+  }
 
   try {
     const [deletedCustomer] = await db.delete(customers).where(eq(customers.id, customerId)).returning()
-
-    if (!deletedCustomer) {
-      return context.json({error:`No customer found for id ${customerId}`}, 404)
-    }
 
     return context.json(deletedCustomer)
   } catch (err) {
