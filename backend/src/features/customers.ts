@@ -44,6 +44,18 @@ customersRouter.post('/', async (context) => {
   return context.json(newCustomer, 201)
 })
 
+customersRouter.get('/me', requireAuth, async (context) => {
+  const user = context.get('user')
+
+  const [customer] = await db.select().from(customers).where(eq(customers.userId, user.userId))
+
+  if (!customer) {
+    return context.json({ error: 'No customer linked to this account'}, 404)
+  }
+
+  return context.json(customer)
+})
+
 customersRouter.get('/:customerId', requireAuth, async(context) => {
   const user = context.get('user')
   const customerId = Number(context.req.param('customerId'))

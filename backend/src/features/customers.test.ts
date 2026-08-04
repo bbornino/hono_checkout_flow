@@ -99,6 +99,25 @@ describe('Customers API', () => {
     })
   })
 
+  describe('GET /customers/me', () => {
+    it('returns the logged-in customer\'s own record', async () => {
+      const response = await apiRequest('/customers/me', { token: customerToken })
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body.id).toBe(testCustomerId)
+    })
+
+    it('rejects a request with no token', async () => {
+      const response = await apiRequest('/customers/me')
+      expect(response.status).toBe(401)
+    })
+
+    it('returns 404 for an account with no linked customer record', async () => {
+      const response = await apiRequest('/customers/me', { token: adminToken })
+      expect(response.status).toBe(404)
+    })
+  })
+
   describe('GET /customers/:customerId', () => {
     it('allows a customer to view their own record', async () => {
       const response = await apiRequest(`/customers/${testCustomerId}`, { token: customerToken })
