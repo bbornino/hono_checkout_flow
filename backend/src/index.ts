@@ -1,5 +1,6 @@
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
+import { logger } from 'hono/logger'
 import { corsMiddleware } from './middleware/cors.js'
 
 import {customersRouter} from './features/customers.js'
@@ -13,6 +14,12 @@ import {authRouter} from './features/auth.js'
 
 const app = new Hono()
 
+app.use('*', logger((message, ...rest) => {
+  const datestamp = new Date().toLocaleDateString()
+  const timestamp = new Date().toLocaleTimeString()
+
+  console.log(`[${datestamp} ${timestamp}] ${message}`, ...rest)
+}))
 app.use('*', corsMiddleware)
 
 app.get('/', (c) => {
