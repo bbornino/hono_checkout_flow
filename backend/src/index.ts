@@ -11,6 +11,7 @@ import {ordersRouter} from './features/orders.js'
 import {paymentsRouter} from './features/payments.js'
 import {shipmentsRouter} from './features/shipments.js'
 import {authRouter} from './features/auth.js'
+import {checkoutRouter} from './features/checkout.js'
 
 const app = new Hono()
 
@@ -38,6 +39,7 @@ app.route('/orders', ordersRouter)
 app.route('/payments', paymentsRouter)
 app.route('/shipments', shipmentsRouter)
 app.route('/auth', authRouter)
+app.route('/checkout', checkoutRouter)
 
 serve({
   fetch: app.fetch,
