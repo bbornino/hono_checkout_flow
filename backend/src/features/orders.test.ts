@@ -310,5 +310,73 @@ describe('Orders API', () => {
       })
       expect(response.status).toBe(409)
     })
+
+    it('allows a customer to cancel their own order', async () => {
+      const orderRes = await apiRequest('/orders', {
+        method: 'POST',
+        token: customerToken,
+        body: {
+          shippingAddressId: testAddressId,
+          billingAddressId: testAddressId,
+          items: [{ productId: testProductId, quantity: 1 }],
+        },
+      })
+      const order = await orderRes.json()
+
+      const response = await apiRequest(`/orders/${order.id}`, {
+        method: 'PATCH',
+        token: customerToken,
+        body: { status: 'cancelled' },
+      })
+
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body.status).toBe('cancelled')
+    })
+
+    it('rejects a customer attempting a non-cancel transition', async () => {
+      const orderRes = await apiRequest('/orders', {
+        method: 'POST',
+        token: customerToken,
+        body: {
+          shippingAddressId: testAddressId,
+          billingAddressId: testAddressId,
+          items: [{ productId: testProductId, quantity: 1 }],
+        },
+      })
+      const order = await orderRes.json()
+
+      const response = await apiRequest(`/orders/${order.id}`, {
+        method: 'PATCH',
+        token: customerToken,
+        body: { status: 'paid' },
+      })
+
+      expect(response.status).toBe(403)
+    })
+
+    it('rejects a customer cancelling an order that is not theirs', async () => {
+      const otherOrderRes = await apiRequest('/orders', {
+        method: 'POST',
+        token: adminToken,
+        body: {
+          customerId: testCustomerId,
+          shippingAddressId: testAddressId,
+          billingAddressId: testAddressId,
+          items: [{ productId: testProductId, quantity: 1 }],
+        },
+      })
+      const otherOrder = await otherOrderRes.json()
+
+      const differentCustomerToken = await createTestUser('customer')
+
+      const response = await apiRequest(`/orders/${otherOrder.id}`, {
+        method: 'PATCH',
+        token: differentCustomerToken,
+        body: { status: 'cancelled' },
+      })
+
+      expect(response.status).toBe(404)
+    })
   })
 })
