@@ -164,7 +164,8 @@ function Checkout() {
                                     onValueChange={setSelectedAddressId}>
                                 {addresses?.map((address) => (
                                     <div key={address.id} className='flex items-center gap-2 rounded-md border p-3'>
-                                        <RadioGroupItem value={String(address.id)} id={`shipping-${address.id}`} />
+                                        <RadioGroupItem value={String(address.id)} 
+                                            id={`shipping-${address.id}`} data-testid={`shipping-address-${address.id}`}/>
                                         <Label htmlFor={`shipping-${address.id}`} className="flex-1 cursor-pointer">
                                             {formatAddress(address)}
                                         </Label>
@@ -269,7 +270,8 @@ function Checkout() {
 
                     {submitError && <p className='text-sm text-red-600'>{submitError}</p>}
 
-                    <Button className='w-ful' size="lg" onClick={handlePlaceOrder} disabled={submitting}>
+                    <Button className='w-ful' size="lg" onClick={handlePlaceOrder} 
+                            disabled={submitting} data-testid="place-order-button">
                         {submitting ? 'Placing Order...' : 'Place Order'}
                     </Button>
                 </CardContent>
