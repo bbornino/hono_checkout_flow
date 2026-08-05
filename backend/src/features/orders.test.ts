@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { BASE_URL } from '../constants.js'
+import { apiRequest, createTestUser } from '../testHelpers.js'
 
 describe('Orders API', () => {
   let testCustomerId: number
@@ -10,99 +10,68 @@ describe('Orders API', () => {
   let customerToken: string
 
   beforeAll(async () => {
-    const customerRes = await fetch(`${BASE_URL}/customers`, {
+    const customerRes = await apiRequest('/customers', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      body: {
         firstName: 'Order',
         lastName: 'Tester',
         email: `order-test-${Date.now()}@example.com`,
-      }),
+      },
     })
     const customer = await customerRes.json()
     testCustomerId = customer.id
 
-    const adminEmail = `order-admin-${Date.now()}@example.com`
-    await fetch(`${BASE_URL}/auth/signup`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: adminEmail, password: 'admin', role: 'admin' }),
-    })
-    const adminLoginRes = await fetch(`${BASE_URL}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: adminEmail, password: 'admin' }),
-    })
-    adminToken = (await adminLoginRes.json()).token
+    adminToken = await createTestUser('admin')
 
-    const addressRes = await fetch(`${BASE_URL}/addresses`, {
+    const addressRes = await apiRequest('/addresses', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
-      body: JSON.stringify({
+      token: adminToken,
+      body: {
         customerId: testCustomerId,
         addressLine1: '123 Test St',
         city: 'Testville',
         state: 'CA',
         postalCode: '90210',
         country: 'US',
-      }),
+      },
     })
-    const address = await addressRes.json()
-    testAddressId = address.id
+    testAddressId = (await addressRes.json()).id
 
-    const productRes = await fetch(`${BASE_URL}/products`, {
+    const productRes = await apiRequest('/products', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      body: {
         sku: `ORDER-TEST-${Date.now()}`,
         name: 'Order Test Product',
         priceCents: 1000,
         weightOz: 5,
-      }),
+      },
     })
     testProductId = (await productRes.json()).id
 
-    const customerEmail = customer.email
-    await fetch(`${BASE_URL}/auth/signup`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: customerEmail,
-        password: 'customer',
-        role: 'customer',
-        existingCustomerId: testCustomerId,
-      }),
-    })
-    const customerLoginRes = await fetch(`${BASE_URL}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: customerEmail, password: 'customer' }),
-    })
-    customerToken = (await customerLoginRes.json()).token
+    customerToken = await createTestUser('customer', testCustomerId, customer.email)
   })
 
   afterAll(async () => {
-    await fetch(`${BASE_URL}/products/${testProductId}`, { method: 'DELETE' })
-    await fetch(`${BASE_URL}/addresses/${testAddressId}`, { method: 'DELETE' })
-    await fetch(`${BASE_URL}/customers/${testCustomerId}`, { method: 'DELETE' })
+    await apiRequest(`/products/${testProductId}`, { method: 'DELETE' })
+    await apiRequest(`/addresses/${testAddressId}`, { method: 'DELETE', token: adminToken })
+    await apiRequest(`/customers/${testCustomerId}`, { method: 'DELETE', token: adminToken })
   })
 
   describe('Auth protection', () => {
     it('rejects GET /orders with no token', async () => {
-      const response = await fetch(`${BASE_URL}/orders`)
+      const response = await apiRequest('/orders')
       expect(response.status).toBe(401)
     })
 
     it('rejects POST /orders with no token', async () => {
-      const response = await fetch(`${BASE_URL}/orders`, {
+      const response = await apiRequest('/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           customerId: testCustomerId,
           shippingAddressId: testAddressId,
           billingAddressId: testAddressId,
           items: [{ productId: testProductId, quantity: 1 }],
-        }),
+        },
       })
       expect(response.status).toBe(401)
     })
@@ -110,15 +79,15 @@ describe('Orders API', () => {
 
   describe('POST /orders', () => {
     it('creates an order as a customer, ignoring a spoofed customerId', async () => {
-      const response = await fetch(`${BASE_URL}/orders`, {
+      const response = await apiRequest('/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${customerToken}` },
-        body: JSON.stringify({
+        token: customerToken,
+        body: {
           customerId: 999999,
           shippingAddressId: testAddressId,
           billingAddressId: testAddressId,
           items: [{ productId: testProductId, quantity: 3 }],
-        }),
+        },
       })
 
       expect(response.status).toBe(201)
@@ -129,15 +98,15 @@ describe('Orders API', () => {
     })
 
     it('allows admin to place an order on behalf of a customer', async () => {
-      const response = await fetch(`${BASE_URL}/orders`, {
+      const response = await apiRequest('/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
-        body: JSON.stringify({
+        token: adminToken,
+        body: {
           customerId: testCustomerId,
           shippingAddressId: testAddressId,
           billingAddressId: testAddressId,
           items: [{ productId: testProductId, quantity: 1 }],
-        }),
+        },
       })
 
       expect(response.status).toBe(201)
@@ -146,39 +115,84 @@ describe('Orders API', () => {
     })
 
     it('rejects an order with a nonexistent productId', async () => {
-      const response = await fetch(`${BASE_URL}/orders`, {
+      const response = await apiRequest('/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${customerToken}` },
-        body: JSON.stringify({
+        token: customerToken,
+        body: {
           customerId: testCustomerId,
           shippingAddressId: testAddressId,
           billingAddressId: testAddressId,
           items: [{ productId: 9999999, quantity: 1 }],
-        }),
+        },
       })
       expect(response.status).toBe(400)
     })
 
     it('rejects an order with an empty items array', async () => {
-      const response = await fetch(`${BASE_URL}/orders`, {
+      const response = await apiRequest('/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${customerToken}` },
-        body: JSON.stringify({
+        token: customerToken,
+        body: {
           customerId: testCustomerId,
           shippingAddressId: testAddressId,
           billingAddressId: testAddressId,
           items: [],
-        }),
+        },
       })
+      expect(response.status).toBe(400)
+    })
+
+    it('applies a valid discount code to the order total', async () => {
+      const discountCode = `ORDER-DISCOUNT-${Date.now()}`
+      await apiRequest('/discounts', {
+        method: 'POST',
+        token: adminToken,
+        body: {
+          code: discountCode,
+          description: 'Order test discount',
+          discountType: 'fixed',
+          fixedCents: 500,
+          validFrom: '2026-01-01T00:00:00.000Z',
+          validUntil: '2026-12-31T00:00:00.000Z',
+        },
+      })
+
+      const response = await apiRequest('/orders', {
+        method: 'POST',
+        token: customerToken,
+        body: {
+          shippingAddressId: testAddressId,
+          billingAddressId: testAddressId,
+          discountCode,
+          items: [{ productId: testProductId, quantity: 1 }],
+        },
+      })
+
+      expect(response.status).toBe(201)
+      const body = await response.json()
+      expect(body.discountCents).toBe(500)
+      expect(body.totalCents).toBe(body.subtotalCents + body.taxCents + body.shippingCents - 500)
+    })
+
+    it('rejects an order with an invalid discount code', async () => {
+      const response = await apiRequest('/orders', {
+        method: 'POST',
+        token: customerToken,
+        body: {
+          shippingAddressId: testAddressId,
+          billingAddressId: testAddressId,
+          discountCode: 'NOT-A-REAL-CODE',
+          items: [{ productId: testProductId, quantity: 1 }],
+        },
+      })
+
       expect(response.status).toBe(400)
     })
   })
 
   describe('GET /orders/:orderId', () => {
     it('allows a customer to view their own order', async () => {
-      const response = await fetch(`${BASE_URL}/orders/${testOrderId}`, {
-        headers: { Authorization: `Bearer ${customerToken}` },
-      })
+      const response = await apiRequest(`/orders/${testOrderId}`, { token: customerToken })
       expect(response.status).toBe(200)
       const body = await response.json()
       expect(body.items.length).toBe(1)
@@ -186,56 +200,46 @@ describe('Orders API', () => {
     })
 
     it('allows admin to view any order', async () => {
-      const response = await fetch(`${BASE_URL}/orders/${testOrderId}`, {
-        headers: { Authorization: `Bearer ${adminToken}` },
-      })
+      const response = await apiRequest(`/orders/${testOrderId}`, { token: adminToken })
       expect(response.status).toBe(200)
     })
 
     it('rejects a customer viewing an order that is not theirs', async () => {
-      const response = await fetch(`${BASE_URL}/orders/1`, {
-        headers: { Authorization: `Bearer ${customerToken}` },
-      })
+      const response = await apiRequest('/orders/1', { token: customerToken })
       expect(response.status).toBe(404)
     })
 
     it('returns 404 for a nonexistent order', async () => {
-      const response = await fetch(`${BASE_URL}/orders/9999999`, {
-        headers: { Authorization: `Bearer ${adminToken}` },
-      })
+      const response = await apiRequest('/orders/9999999', { token: adminToken })
       expect(response.status).toBe(404)
     })
 
     it('returns the order with its status event history', async () => {
-      const response = await fetch(`${BASE_URL}/orders/${testOrderId}`, {
-        headers: { Authorization: `Bearer ${customerToken}` },
-      })
+      const response = await apiRequest(`/orders/${testOrderId}`, { token: customerToken })
       const body = await response.json()
       expect(body.events.length).toBeGreaterThanOrEqual(1)
       expect(body.events[0].status).toBe('pending')
     })
 
     it('adds a new event when status changes', async () => {
-      const orderRes = await fetch(`${BASE_URL}/orders`, {
+      const orderRes = await apiRequest('/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${customerToken}` },
-        body: JSON.stringify({
+        token: customerToken,
+        body: {
           shippingAddressId: testAddressId,
           billingAddressId: testAddressId,
           items: [{ productId: testProductId, quantity: 1 }],
-        }),
+        },
       })
       const order = await orderRes.json()
 
-      await fetch(`${BASE_URL}/orders/${order.id}`, {
+      await apiRequest(`/orders/${order.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
-        body: JSON.stringify({ status: 'paid' }),
+        token: adminToken,
+        body: { status: 'paid' },
       })
 
-      const response = await fetch(`${BASE_URL}/orders/${order.id}`, {
-        headers: { Authorization: `Bearer ${adminToken}` },
-      })
+      const response = await apiRequest(`/orders/${order.id}`, { token: adminToken })
       const body = await response.json()
 
       expect(body.events.length).toBe(2)
@@ -245,18 +249,14 @@ describe('Orders API', () => {
 
   describe('GET /orders', () => {
     it('scopes a customer to only their own orders', async () => {
-      const response = await fetch(`${BASE_URL}/orders`, {
-        headers: { Authorization: `Bearer ${customerToken}` },
-      })
+      const response = await apiRequest('/orders', { token: customerToken })
       expect(response.status).toBe(200)
       const body = await response.json()
       expect(body.every((o: any) => o.customerId === testCustomerId)).toBe(true)
     })
 
     it('allows admin to filter by status', async () => {
-      const response = await fetch(`${BASE_URL}/orders?status=pending`, {
-        headers: { Authorization: `Bearer ${adminToken}` },
-      })
+      const response = await apiRequest('/orders?status=pending', { token: adminToken })
       expect(response.status).toBe(200)
       const body = await response.json()
       expect(body.some((o: any) => o.id === testOrderId)).toBe(true)
@@ -265,19 +265,19 @@ describe('Orders API', () => {
 
   describe('PATCH /orders/:orderId', () => {
     it('rejects a customer role attempting a status transition', async () => {
-      const response = await fetch(`${BASE_URL}/orders/${testOrderId}`, {
+      const response = await apiRequest(`/orders/${testOrderId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${customerToken}` },
-        body: JSON.stringify({ status: 'paid' }),
+        token: customerToken,
+        body: { status: 'paid' },
       })
       expect(response.status).toBe(403)
     })
 
     it('allows admin: pending -> paid', async () => {
-      const response = await fetch(`${BASE_URL}/orders/${testOrderId}`, {
+      const response = await apiRequest(`/orders/${testOrderId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
-        body: JSON.stringify({ status: 'paid' }),
+        token: adminToken,
+        body: { status: 'paid' },
       })
       expect(response.status).toBe(200)
       const body = await response.json()
@@ -285,28 +285,28 @@ describe('Orders API', () => {
     })
 
     it('rejects paid -> delivered (illegal jump)', async () => {
-      const response = await fetch(`${BASE_URL}/orders/${testOrderId}`, {
+      const response = await apiRequest(`/orders/${testOrderId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
-        body: JSON.stringify({ status: 'delivered' }),
+        token: adminToken,
+        body: { status: 'delivered' },
       })
       expect(response.status).toBe(409)
     })
 
     it('allows admin: paid -> refunded', async () => {
-      const response = await fetch(`${BASE_URL}/orders/${testOrderId}`, {
+      const response = await apiRequest(`/orders/${testOrderId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
-        body: JSON.stringify({ status: 'refunded' }),
+        token: adminToken,
+        body: { status: 'refunded' },
       })
       expect(response.status).toBe(200)
     })
 
     it('rejects any transition out of a terminal status', async () => {
-      const response = await fetch(`${BASE_URL}/orders/${testOrderId}`, {
+      const response = await apiRequest(`/orders/${testOrderId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
-        body: JSON.stringify({ status: 'paid' }),
+        token: adminToken,
+        body: { status: 'paid' },
       })
       expect(response.status).toBe(409)
     })

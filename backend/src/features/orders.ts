@@ -1,10 +1,11 @@
 import {Hono} from 'hono'
 import {db} from '../db/index.js'
-import {products, discounts, orders, orderItems, orderEvents, customers} from '../db/schema.js'
+import {products, orders, orderItems, orderEvents, customers} from '../db/schema.js'
 import {z as zod} from 'zod'
 import {eq, inArray, and} from 'drizzle-orm'
 import amqp from 'amqplib'
 import {requireAuth} from '../middleware/auth.js'
+import { validateDiscountCode } from '../discountValidation.js'
 import { RABBITMQ_URL, ORDER_PLACED_QUEUE, ORDER_STATUSES, ALLOWED_TRANSITIONS, TAX_RATE, SHIPPING_CENTS, type OrderStatus } from '../constants.js'
 
 // -------------    Router instance          -----------------
@@ -16,7 +17,7 @@ const orderCreateSchema = zod.object({
   customerId: zod.number().int().positive().optional(),
   shippingAddressId: zod.number().int().positive(),
   billingAddressId: zod.number().int().positive(),
-  discountId: zod.number().int().positive().optional(),
+  discountCode: zod.string().optional(),
   isGift: zod.boolean().default(false),
   giftMessage: zod.string().optional(),
   items: zod.array(
@@ -47,6 +48,7 @@ type OrderTotalsResult =
       taxCents: number
       shippingCents: number
       discountCents: number
+      discountId: number | null
       totalCents: number
     } }
   | { success: false; error: string }
@@ -55,7 +57,7 @@ type OrderTotalsResult =
 // -------------    Helper Functions         -----------------
 async function calculateOrderTotals(
   items: { productId: number; quantity: number }[],
-  discountId?: number
+  discountCode?: string
 ): Promise<OrderTotalsResult> {
     const productIds = items.map((item) => item.productId)
     const foundProducts = await db.select().from(products).where(inArray(products.id, productIds))
@@ -83,39 +85,29 @@ async function calculateOrderTotals(
     const shippingCents = SHIPPING_CENTS
 
     let discountCents = 0
+    let discountId: number | null = null
 
-    if (discountId) {
-        const [discount] = await db.select().from(discounts).where(eq(discounts.id, discountId))
+    if (discountCode) {
+      const validation = await validateDiscountCode(discountCode)
+      if (!validation.valid) {
+        return {success: false, error: validation.error}
+      }
 
-        if (!discount) {
-        return { success: false, error: 'discountId does not reference an existing discount' }
-        }
+      const discount = validation.discount
+      discountId = discount.id
 
-        if (!discount.isActive) {
-        return { success: false, error: 'This discount is no longer active' }
-        }
-
-        const now = new Date()
-        if (now < discount.validFrom || now > discount.validUntil) {
-        return { success: false, error: 'This discount is not currently valid' }
-        }
-
-        if (discount.maxUses !== null && discount.timesUsed >= discount.maxUses) {
-        return { success: false, error: 'This discount has reached its usage limit' }
-        }
-
-        if (discount.discountType === 'percentage') {
+      if (discount.discountType === 'percentage') {
         discountCents = Math.round(subtotalCents * (discount.percentageOff! / 100))
-        } else {
+      } else {
         discountCents = discount.fixedCents!
-        }
+      }
     }
 
     const totalCents = subtotalCents - discountCents + taxCents + shippingCents
 
     return {
         success: true,
-        data: { orderItemsData, subtotalCents, taxCents, shippingCents, discountCents, totalCents },
+        data: { orderItemsData, subtotalCents, taxCents, shippingCents, discountCents, discountId, totalCents },
     }
 }
 
@@ -158,7 +150,7 @@ ordersRouter.post('/', requireAuth, async (context) => {
       effectiveCustomerId = customer.id
     } 
 
-    const totals = await calculateOrderTotals(result.data.items, result.data.discountId)
+    const totals = await calculateOrderTotals(result.data.items, result.data.discountCode)
 
     if (!totals.success) {
         return context.json({error: totals.error}, 400)
@@ -169,7 +161,7 @@ ordersRouter.post('/', requireAuth, async (context) => {
         customerId: effectiveCustomerId,
         shippingAddressId: result.data.shippingAddressId,
         billingAddressId: result.data.billingAddressId,
-        discountId: result.data.discountId,
+        discountId: totals.data.discountId,
         status: 'pending',
         subtotalCents: totals.data.subtotalCents,
         taxCents: totals.data.taxCents,
