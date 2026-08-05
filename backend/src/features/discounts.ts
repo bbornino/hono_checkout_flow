@@ -4,6 +4,7 @@ import {discounts} from '../db/schema.js'
 import {z as zod} from 'zod'
 import {eq} from 'drizzle-orm'
 import { requireAuth, requireAdmin } from '../middleware/auth.js'
+import { validateDiscountCode } from '../discountValidation.js'
 
 const discountsRouter = new Hono()
 
@@ -79,6 +80,30 @@ const discountUpdateSchema = discountBaseSchema.partial().refine(
 discountsRouter.get('/', requireAuth, requireAdmin, async (context) => {
   const allDiscounts = await db.select().from(discounts)
   return context.json(allDiscounts)
+})
+
+discountsRouter.post('/validate', requireAuth, async (context) => {
+  const body = await context.req.json()
+  const code = body.code
+
+  if (!code || typeof code !== 'string') {
+    return context.json({error: 'A discount code is required'}, 400)
+  }
+
+  const result = await validateDiscountCode(code)
+  if (!result.valid) {
+    return context.json({ valid: false, error: result.error}, 200)
+  }
+
+  return context.json({
+    valid: true,
+    code: result.discount.code,
+    description: result.discount.description,
+    discountType: result.discount.discountType,
+    percentageOff: result.discount.percentageOff,
+    fixedCents: result.discount.fixedCents,
+  })
+
 })
 
 discountsRouter.post('/', requireAuth, requireAdmin, async (context) => {

@@ -44,6 +44,76 @@ describe('Discounts API', () => {
     })
   })
 
+  describe('POST /discounts/validate', () => {
+    let validatableCode: string
+
+    beforeAll(async () => {
+      validatableCode = `VALIDATE-${Date.now()}`
+      await apiRequest('/discounts', {
+        method: 'POST',
+        token: adminToken,
+        body: validDiscountBody({ code: validatableCode }),
+      })
+    })
+
+    it('rejects a request with no token', async () => {
+      const response = await apiRequest('/discounts/validate', {
+        method: 'POST',
+        body: { code: validatableCode },
+      })
+      expect(response.status).toBe(401)
+    })
+
+    it('allows a customer to validate a real code', async () => {
+      const response = await apiRequest('/discounts/validate', {
+        method: 'POST',
+        token: customerToken,
+        body: { code: validatableCode },
+      })
+
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body.valid).toBe(true)
+      expect(body.discountType).toBe('percentage')
+    })
+
+    it('returns valid: false for a nonexistent code, not an error status', async () => {
+      const response = await apiRequest('/discounts/validate', {
+        method: 'POST',
+        token: customerToken,
+        body: { code: 'NOT-A-REAL-CODE' },
+      })
+
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body.valid).toBe(false)
+      expect(body.error).toBe('Invalid discount code')
+    })
+
+    it('rejects a request missing the code field', async () => {
+      const response = await apiRequest('/discounts/validate', {
+        method: 'POST',
+        token: customerToken,
+        body: {},
+      })
+
+      expect(response.status).toBe(400)
+    })
+
+    it('never exposes internal fields like id or timesUsed', async () => {
+      const response = await apiRequest('/discounts/validate', {
+        method: 'POST',
+        token: customerToken,
+        body: { code: validatableCode },
+      })
+
+      const body = await response.json()
+      expect(body.id).toBeUndefined()
+      expect(body.timesUsed).toBeUndefined()
+      expect(body.maxUses).toBeUndefined()
+    })
+  })
+
   describe('POST /discounts', () => {
     it('creates a percentage discount with valid data', async () => {
       const response = await apiRequest('/discounts', {
