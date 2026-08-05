@@ -34,7 +34,7 @@ function Home() {
                     <Skeleton key={i} className="h-32 w-full rounded-lg" />
                 ))
                 : data?.map((product) => (
-                    <Card key={product.id}>
+                    <Card key={product.id} data-testid={`product-card-${product.sku}`}>
                         <CardHeader>
                             <CardTitle className="flex items-center justify-between">
                                 {product.name}
