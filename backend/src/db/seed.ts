@@ -57,7 +57,7 @@ async function seed() {
   console.log('Creating admin account...')
   await db.insert(users).values({
     email: 'admin@hono.test',
-    passwordHash: await bcrypt.hash('admin123', 10),
+    passwordHash: await bcrypt.hash('admin', 10),
     role: 'admin',
   })
 

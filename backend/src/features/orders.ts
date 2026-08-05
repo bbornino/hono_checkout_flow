@@ -273,11 +273,6 @@ ordersRouter.get('/', requireAuth, async (context) => {
 
 ordersRouter.patch('/:orderId', requireAuth, async (context) => {
   const user = context.get('user')
-
-  if (user.role !== 'admin') {
-    return context.json({error: 'Admin access required'}, 403)
-  }
-
   const orderId = Number(context.req.param('orderId'))
   const body = await context.req.json()
   const result = orderStatusUpdateSchema.safeParse(body)
@@ -290,6 +285,17 @@ ordersRouter.patch('/:orderId', requireAuth, async (context) => {
 
   if (!order) {
     return context.json({error: `No order found for id ${orderId}`}, 404)
+  }
+
+  if (user.role !== 'admin') {
+    if (result.data.status !== 'cancelled') {
+      return context.json({error: 'Customers may only cancel an order'}, 403)
+    }
+
+    const [customer] = await db.select().from(customers).where(eq(customers.userId, user.userId))
+    if (!customer || order.customerId !== customer.id) {
+      return context.json({error: `No order found for id ${orderId}`}, 404)
+    }
   }
 
   const currentStatus = order.status as OrderStatus
