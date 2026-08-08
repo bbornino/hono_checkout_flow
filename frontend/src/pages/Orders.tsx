@@ -87,7 +87,7 @@ function Orders() {
             const canCancel = CANCELLABLE_STATUSES.includes(order.status)
 
             return (
-            <Card key={order.id}>
+            <Card key={order.id} data-testid={`order-card-${order.id}`}>
               <CardHeader className="flex cursor-pointer flex-row items-center justify-between"
                   onClick={() => toggleExpand(order.id)}>
                 <div className='flex items-center gap-3'>

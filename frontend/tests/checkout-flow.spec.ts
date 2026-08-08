@@ -4,7 +4,7 @@ test('customer can log in, add a product to cart, and complete checkout', async 
   await test.step('log in', async () => {
     await page.goto('/login')
 
-    await page.getByLabel('Email').fill('customer@hono.test')
+    await page.getByRole('textbox', { name: 'Email' }).fill('customer@hono.test')
     await page.getByLabel('Password').fill('customer')
     await page.getByRole('button', { name: 'Log In' }).click()
 

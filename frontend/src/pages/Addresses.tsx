@@ -72,11 +72,15 @@ function Addresses() {
     async function onSubmit(values: AddressFormData) {
         setServerError(null)
 
+        const payload = {
+            ...values,
+            label: values.label?.trim() ? values.label : undefined,
+        }
         try {
             if (editingId) {
-                await api.patch(`/addresses/${editingId}`, values)
+                await api.patch(`/addresses/${editingId}`, payload)
             } else {
-                await api.post('/addresses', values)
+                await api.post('/addresses', payload)
             }
             queryClient.invalidateQueries({ queryKey: ['addresses'] })
             reset()
@@ -163,7 +167,7 @@ function Addresses() {
             ) : (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {data?.map((address) => (
-                        <Card key={address.id}>
+                        <Card key={address.id} data-testid={`address-card-${address.id}`}>
                             <CardContent>
                                 {address.label && <p className="font-medium">{address.label}</p>}
                                 <p>{address.addressLine1}</p>
