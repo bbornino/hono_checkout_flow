@@ -22,6 +22,8 @@ test('customer can log in, add a product to cart, and complete checkout', async 
     await page.getByRole('button', { name: 'Save Address' }).click()
   })
 
+  await page.goto('/')
+
   await test.step('add a product to cart', async () => {
     const mugCard = page.getByTestId('product-card-MUG-001')
     await mugCard.getByRole('button', { name: 'Add to Cart' }).click()
