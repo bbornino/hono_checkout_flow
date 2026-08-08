@@ -45,7 +45,7 @@ authRouter.patch('/password', requireAuth, async (context) => {
 
     const currentPasswordMatches = await bcrypt.compare(result.data.currentPassword, existingUser.passwordHash)
     if (!currentPasswordMatches) {
-        return context.json({ error: 'Current password is incorrect'}, 401)
+        return context.json({ error: 'Current password is incorrect'}, 400)
     }
 
     const newPasswordHash = await bcrypt.hash(result.data.newPassword, 10)

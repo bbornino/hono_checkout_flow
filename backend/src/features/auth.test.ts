@@ -205,7 +205,7 @@ describe('Auth API', () => {
         body: { currentPassword: 'wrong-password', newPassword: 'newone' },
       })
 
-      expect(response.status).toBe(401)
+      expect(response.status).toBe(400)
     })
 
     it('changes the password and allows login with the new one', async () => {
